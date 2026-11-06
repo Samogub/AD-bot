@@ -931,16 +931,14 @@ DrawSetup() {
     tips := ["Graphics quality: set it to the lowest (Esc > Settings in Roblox).",
              "Turn off visual effects and extra animations in the game settings: they hide the colours the bot reads.",
              "Keep Roblox in a window on your main monitor (not F11). Do not resize it: the bot sets the size.",
-             "Loadouts: 1 for raids, 2 for Infinity, 3 for Speed Raid - or turn Loadouts off in Modes."]
+             "Loadouts: 1 for raids, 2 for Infinity or Dimension, 3 for Speed Raid - or turn Loadouts off in Modes."]
     ty := y + 122
     for t in tips {
         Dot(x + 490, ty + 6, 8, C.hi)
         TxP(t, "ui", 12, C.text, x + 510, ty, 280, 64)
         ty += 70
     }
-    ; set right here: the camera turn after respawn depends on it (the same setting as in Modes > Raid)
-    Stepper(x + 490, ty - 6, 300, "Mouse sensitivity", "camSens", 1, 1, 200, 100, "", 36)
-    TxP("Set the same as in Roblox: Esc > Settings > Camera Sensitivity. Do not use the PC while the bot runs.", "ui", 11, C.dim, x + 490, ty + 32, 300, 32)
+    TxP("Do not use the PC while the bot runs.", "ui", 11, C.dim, x + 490, ty, 300, 32)
     ; bottom bar
     by := y + h - 68
     Btn(x + 28, by, 200, 44, setupRan ? "Check again" : "Check now", "setup_check", SetupRun, !setupRan, Chr(0xE9D9))
@@ -1138,6 +1136,14 @@ PageRaid() {
     Panel(CX, py2, CWD, CHT - 46 - 92, "How the fight is played")
     colw := (CWD - 40 - 24) // 2
     ToggleRow(CX + 20, py2 + 38, colw, "Solo mode (Friends Only)", "Nobody can join, so Start is pressed at once", "soloRaid")
+    solo := cfg["soloRaid"] = "1"
+    if cfg["bossAuto"] = "1" {
+        rx := CX + 20 + colw + 24
+        Stepper(rx, py2 + 38, colw, "PARTY wait before Start", "startDelay", 1, 0, 30, 1, "s", 10, "Needs Friends Only off", solo)
+        Stepper(rx, py2 + 84, colw, "Early start at bonus", "startBonus", 10, 0, 300, 1, "%", 110, "Needs Friends Only off", solo)
+        TxP("The game's Auto button fights the boss, the bot keeps it on.", "ui", 11, C.dim, CX + 20, py2 + 100, colw, 36)
+        return
+    }
     ToggleRow(CX + 20, py2 + 86, colw, "Reset characters without skill 5", SkillOn("5") ? "Reset until a character with skill 5 comes" : "Locked: skill 5 is turned off", "resetNo5", !SkillOn("5"))
     ToggleRow(CX + 20, py2 + 134, colw, "Reset the 3rd character", "Even if it has skill 5", "resetThird")
     Stepper(CX + 20, py2 + 188, colw, "Mouse sensitivity", "camSens", 1, 1, 200, 100, "", 36, "As in the Roblox settings")
@@ -1193,16 +1199,16 @@ PageDimension() {
     Panel(CX, py, lw, CHT - 46, "Recorded run")
     ToggleRow(CX + 20, py + 36, colw, "Dimension on", "Plays the recorded run instead of Infinity", "dungeon")
     cwm := (colw - 8) // 2
-    Chip(CX + 20, py + 78, cwm, 26, "Method 1", cfg["dimMethod"] != "2", "dm_1", PickDimMethod.Bind("1"))
-    Chip(CX + 20 + cwm + 8, py + 78, cwm, 26, "Method 2", cfg["dimMethod"] = "2", "dm_2", PickDimMethod.Bind("2"))
-    Stepper(CX + 20, py + 110, colw, "Start delay", "dimShift", 100, 0, 5000, 1000, "s", 0, "Wait this long before the run")
-    ToggleRow(CX + 20, py + 156, colw, "Keep fighting after the run", "Finishes enemies that are left", "dimFight")
+    Chip(CX + 20, py + 92, cwm, 26, "Method 1", cfg["dimMethod"] != "2", "dm_1", PickDimMethod.Bind("1"))
+    Chip(CX + 20 + cwm + 8, py + 92, cwm, 26, "Method 2", cfg["dimMethod"] = "2", "dm_2", PickDimMethod.Bind("2"))
+    Stepper(CX + 20, py + 126, colw, "Start delay", "dimShift", 100, 0, 5000, 1000, "s", 0, "Wait this long before the run")
+    ToggleRow(CX + 20, py + 172, colw, "Keep fighting after the run", "Finishes enemies that are left", "dimFight")
     rt := DimRoute(), last := rt.Length ? rt[rt.Length][1] : 0
-    TxP("Starts when enemies show up. Run: " rt.Length " steps, " Round(last / 1000, 1) " s. Same character and loadout as recorded.", "ui", 11, C.dim, CX + 20, py + 206, colw, 36)
+    TxP("Starts when enemies show up. Run: " rt.Length " steps, " Round(last / 1000, 1) " s. Same character and loadout as recorded.", "ui", 11, C.dim, CX + 20, py + 224, colw, 36)
     bw := (colw - 12) // 2
-    Btn(CX + 20, py + 248, bw, 36, "Edit the run", "dim_edit", DimEdit, false, Chr(0xE70F))
-    Btn(CX + 20 + bw + 12, py + 248, bw, 36, "Open folder", "dim_dir", OpenPath.Bind(DIM_DIR), false, Chr(0xE8B7))
-    TxP("Enemies late? Edit the run, pick a row, Wait +100 ms, Save.", "ui", 11, C.dim, CX + 20, py + 292, colw, 36)
+    Btn(CX + 20, py + 262, bw, 36, "Edit the run", "dim_edit", DimEdit, false, Chr(0xE70F))
+    Btn(CX + 20 + bw + 12, py + 262, bw, 36, "Open folder", "dim_dir", OpenPath.Bind(DIM_DIR), false, Chr(0xE8B7))
+    TxP("Enemies late? Edit the run, pick a row, Wait +100 ms, Save.", "ui", 11, C.dim, CX + 20, py + 306, colw, 36)
     Panel(rx, py, lw, CHT - 46, "Character for this run")
     ic := IMGDIR DIM_CHAR.icon
     if FileExist(ic)
