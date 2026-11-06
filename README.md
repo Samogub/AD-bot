@@ -12,7 +12,7 @@
 - **The old interface stays**, improved - open it with **FULL UI** (System group) or **CHARACTER & STATS**.
 - **Giant Dimension** - plays a recorded run instead of Infinity. Method 1 plays `dimension\giant\log.txt`, Method 2 the built-in run.
 - **Recorder** (`Edit the run`) - change the run yourself: Wait +/-100 ms, add a key press / key down / key up, edit or delete rows.
-- **Music** in the compact window (optional): put your own `.m4a` files into a `music` folder.
+- **Music** in the compact window (can be turned off in System > MUSIC; add your own `.m4a` files to the `music` folder).
 - Lobby is also found by the **BAG** text when the PLAY button cannot be read (for example under the "Activate Windows" watermark).
 - Old private server links (`privateServerLinkCode`) open straight in Roblox; if a link fails the bot tries the plain game start.
 
