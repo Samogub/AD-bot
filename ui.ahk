@@ -144,7 +144,7 @@ UiLogPush(text) {
 }
 
 ; while the bot runs: only the hotbar on the game screen, also with two monitors (the big window there was in the way);
-; stopped: the big window, on the second monitor if there is one
+; stopped: the big window, on the monitor with the mouse
 Layout() {
     global layoutMons
     layoutMons := MonitorGetCount()
@@ -166,17 +166,19 @@ Layout() {
     fade := skin = "compact" && !DllCall("IsWindowVisible", "ptr", g.Hwnd)   ; fade in only when the window appears
     if fade
         CompactFadePrep()
-    prim := MonitorGetPrimary()
+    ; 06.11: on the monitor with the mouse (where the user opened it), not always the second one
+    pt := Buffer(8, 0)
+    DllCall("GetCursorPos", "ptr", pt)
+    mx := NumGet(pt, 0, "int"), my := NumGet(pt, 4, "int")
+    MonitorGetWorkArea(MonitorGetPrimary(), &l, &t, &r, &b)
     Loop layoutMons {
-        if A_Index = prim
-            continue
-        MonitorGetWorkArea(A_Index, &l, &t, &r, &b)
-        g.Show("x" (l + (r - l - PW) // 2) " y" (t + (b - t - PH) // 2) " NoActivate")
-        if fade
-            CompactFadeStart()
-        return
+        MonitorGet(A_Index, &ml, &mt, &mr, &mb)
+        if mx >= ml && mx < mr && my >= mt && my < mb {
+            MonitorGetWorkArea(A_Index, &l, &t, &r, &b)
+            break
+        }
     }
-    g.Show("x" ((A_ScreenWidth - PW) // 2) " y" ((A_ScreenHeight - PH) // 2) " NoActivate")
+    g.Show("x" (l + (r - l - PW) // 2) " y" (t + (b - t - PH) // 2) " NoActivate")
     if fade
         CompactFadeStart()
 }
