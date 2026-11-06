@@ -1,68 +1,86 @@
-# AD Bot
+<div align="center">
+
+# AD/BOT
 
 **Farming bot for Anime Dimensions Simulator (Roblox) that keeps going when Roblox itself fails.**
 
-> Roblox disconnects, freezes on a teleport, loops a retry screen or just closes? AD Bot was made first of all for players for whom this happens **all the time**. It notices the problem, restarts the game, joins again and carries on, so your night run does not end at the first crash.
+![version](https://img.shields.io/badge/version-0.3.1-e5334b?style=for-the-badge)
+![windows](https://img.shields.io/badge/Windows-10%20%2F%2011-1f1f2e?style=for-the-badge&logo=windows)
+![autohotkey](https://img.shields.io/badge/AutoHotkey-v2-1f1f2e?style=for-the-badge&logo=autohotkey)
+![screen](https://img.shields.io/badge/screen-1920x1080-1f1f2e?style=for-the-badge)
 
-**Version 0.3.1** · Windows · by Samogub
+<img src="docs/hero.gif" width="640" alt="AD/BOT compact window">
 
-## New in 0.3.1
+</div>
 
-- **New compact interface** - a small window with all the settings in fold-out groups. It opens by default after the first Setup check.
-- **The old interface stays**, improved - open it with **FULL UI** (System group) or **CHARACTER & STATS**.
-- **Giant Dimension** - plays a recorded run instead of Infinity. Method 1 plays `dimension\giant\log.txt`, Method 2 the built-in run.
-- **Recorder** (`Edit the run`) - change the run yourself: Wait +/-100 ms, add a key press / key down / key up, edit or delete rows.
-- **Music** in the compact window (can be turned off in System > MUSIC; add your own `.m4a` files to the `music` folder).
-- Lobby is also found by the **BAG** text when the PLAY button cannot be read (for example under the "Activate Windows" watermark).
-- Old private server links (`privateServerLinkCode`) open straight in Roblox; if a link fails the bot tries the plain game start.
+> Roblox disconnects, freezes on a teleport, loops a retry screen or just closes? AD/BOT was made for players for whom this happens **all the time**. It notices the problem, restarts the game, joins again and carries on, so your night run does not end at the first crash.
 
-![Compact interface](docs/compact.png)
+## ✨ New in 0.3.1
 
-![Full interface](docs/modes.png)
+| | |
+|---|---|
+| 🪟 **New compact interface** | A small window with all settings in fold-out groups. Opens by default after the first Setup check. |
+| 🖥️ **Classic interface, improved** | Still here: **FULL UI** in the System group or **CHARACTER & STATS**. |
+| 🗿 **Giant Dimension** | Plays a recorded run instead of Infinity. Method 1 = `dimension\giant\log.txt`, Method 2 = built-in run. |
+| 🎛️ **Recorder** | `Edit the run`: Wait +/-100 ms, add key press / key down / key up, edit or delete rows. |
+| 🎵 **Music** | Plays in the compact window. Turn it off in System > MUSIC, or add your own `.m4a` to `music`. |
+| 🧭 **Smarter lobby check** | Lobby is also found by the **BAG** text when PLAY cannot be read (e.g. under the "Activate Windows" watermark). |
+| 🔗 **Private server links** | Old `privateServerLinkCode` links open straight in Roblox; a failed link falls back to the plain game start. |
 
-## What it does when Roblox breaks
+<table>
+<tr>
+<td align="center"><img src="docs/compact.png" width="300"><br><sub>Compact window</sub></td>
+<td align="center"><img src="docs/modes.png" width="520"><br><sub>Classic window</sub></td>
+</tr>
+</table>
 
-- **Disconnected / Error 279:** closes Roblox and joins again.
-- **Roblox crashed or closed:** starts the game again.
-- **Stuck on "Teleporting":** presses LEAVE, and restarts the game if that does not help.
-- **Infinity keeps restarting by itself (Auto Retry):** presses LEAVE on the results screen, so the bot does not get stuck in endless Infinity.
-- **Unknown screen or stuck menu:** tries Esc and closing windows, then restarts the game.
-- **Wrong window size, fullscreen or keyboard layout:** fixes it before it starts.
-- **Every restart** saves a screenshot and a log line with the reason. If something still goes wrong, run `Send_Report.bat` and send the zip to the author.
+## 🛠️ When Roblox breaks
 
-## What it farms
+- **Disconnected / Error 279** - closes Roblox and joins again.
+- **Roblox crashed or closed** - starts the game again.
+- **Stuck on "Teleporting"** - presses LEAVE, restarts the game if that does not help.
+- **Infinity Auto Retry loop** - presses LEAVE on the results screen.
+- **Unknown screen or stuck menu** - Esc, then closing windows, then a game restart.
+- **Wrong window size, fullscreen or keyboard layout** - fixed before the start.
+- **Every restart** saves a screenshot and a log line with the reason.
 
-- **Raid:** every hour. The bot enters the raid and presses the game's **Auto** button, then reads the gems and tokens from the results.
-- **Speed Raid:** every 30 minutes with the next unused character, also with Auto.
-- **Infinity:** between raids. The character stands still and uses the big AOE skills.
-- A short summary (raids, gems, tokens, Infinity runs, Roblox restarts) is written to the log when you stop the bot.
+## ⚔️ What it farms
 
-## What you need
+- **Raid** - every hour, with the game's **Auto** button; gems and tokens are read from the results.
+- **Speed Raid** - every 30 minutes with the next unused character.
+- **Infinity** or **Giant Dimension** - between raids.
+- A short summary (raids, gems, tokens, runs, restarts) is written to the log when you stop the bot.
+
+## 📋 What you need
 
 - Windows 10 / 11 and [AutoHotkey v2](https://www.autohotkey.com/)
-- Roblox desktop app in a normal window (not F11 fullscreen). The bot sets the window size itself.
 - Screen **1920x1080**, Windows scale **100%**, taskbar at the bottom
-- Screen lock and screensaver turned off
-- English OCR language pack in Windows (Settings > Time & Language > Language)
-- Roblox language **English**
-- In Roblox (Optional): lowest graphics
-- Optional: loadout 1 = raid, 2 = Infinity or Dimension, 3 = Speed Raid, then turn on **Switch loadout**
+- Roblox desktop app in a normal window (not F11). The bot sets the window size itself.
+- Roblox language **English**, English OCR language pack in Windows
+- Screen lock and screensaver off
+- Optional: lowest graphics; loadout 1 = raid, 2 = Infinity / Dimension, 3 = Speed Raid
 
-## How to start
+## 🚀 How to start
 
-1. Download the repository (Code > Download ZIP) and unpack it!
+1. **Code > Download ZIP** and unpack it.
 2. Open Roblox, join the game and wait in the lobby.
-3. Run `RaidBot.ahk`. On the first start press **Check now**, fix what it shows, then **Continue** - the compact window opens.
+3. Run `RaidBot.ahk`. Press **Check now**, fix what it shows, then **Continue** - the compact window opens.
 4. Pick the raid and modes.
-5. **F1** starts, **F2** stops, **F3** reloads the bot.
+5. **F1** start · **F2** stop · **F3** reload.
+
+<details>
+<summary><b>Private server</b></summary>
 
 After a restart the bot starts the game on a public server. To come back to your private server, put `serverLink=<your link>` under `[raid]` in `raid.ini`.
+</details>
 
-## Good to know
+## ⚠️ Good to know
 
 - Tested on one setup (1920x1080, one account). Other settings can break image matching.
-- The bot uses your mouse and keyboard all the time, so you cannot use the PC while it runs.
-- A disconnect is noticed after about 1.5 minutes, so each failure costs a few minutes.
+- The bot uses your mouse and keyboard, so you cannot use the PC while it runs.
+- A disconnect is noticed after about 1.5 minutes.
 - Automating Roblox games may break the rules of Roblox or the game. **Use at your own risk.**
 
-Found a problem? Run `Send_Report.bat` and send the zip to the author, or open an issue here.
+Found a problem? Run `Send_Report.bat` and send the zip to the author, or open an issue.
+
+<div align="center"><sub>made by Samogub</sub></div>
