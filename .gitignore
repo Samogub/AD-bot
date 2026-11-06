@@ -6,3 +6,7 @@ release/
 AD-Bot-report*.zip
 *.tmp
 
+music/
+logs/
+tools/rec/
+dimension/giant/*.png

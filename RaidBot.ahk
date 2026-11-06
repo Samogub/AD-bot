@@ -33,6 +33,9 @@ TOLERANCE := 40
 ; 1.11 22:00 raid at client height 1027: the "Respawn in N" countdown was not seen at all and BossAhead scored 0.13 instead of 0.00 -
 ; the detectors were calibrated at 1017 (taskbar 40 px), so that is the one size we use, +-2 px.
 GAME_W := 1920, GAME_H := 1017
+; the game area on screen: title bar 23 + client 1017 + 40 = the top-left 1920x1080 of any screen >= 1920x1080
+; (5.11: bigger screens and Windows scale > 100% are allowed - the window keeps this size, all coordinates stay the same)
+SCR_W := 1920, SCR_H := 1080
 ENEMIES_BOX := [1700, 780, 1920, 900]    ; де шукати напис ENEMIES LEFT (є лише в бою)
 ; де напис стоїть зазвичай (лівий верхній кут). Спершу шукаємо лише тут: у широкій рамці ImageSearch
 ; бере перший збіг, а рожева стіна (178,106,94) з допуском *80 теж "схожа" на літери - її відкидає
@@ -51,10 +54,17 @@ RAIDS := Map(
     "tiger",     ["", 0, "Tiger Raid", "i)Tiger"],
     "dual",      ["", 0, "Dual Wielder Raid", "i)Wielder"],
     "monke",     ["", 0, "Monke Raid", "i)Monke"])
+; dungeon (experimental): found in the Create list by name, like a raid without a picture
+DUNGEON := ["", 0, "Giant Dimension", "i)Giant"]
+; Giant mode: leave for the raid this many seconds before createFrom (last run <= 52.4 s + LEAVE-to-Create <= 42 s)
+DIM_LEAD := 100
+#Include dungeon_giant.ahk               ; DUNGEON_ROUTE: the recorded run (built in), played by RunRoute()
+DIM_DIR := A_ScriptDir "\dimension\giant\"   ; the editable copy of the run: log.txt (Recorder format) + screenshots
+DIM_MOBS := [820, 260, 280, 170]         ; where the first group (3 orange giants) stands at the Giant Dimension spawn
 KNOCKBACK_RAIDS := " divine "            ; лише тут бос відкидає: пошук боса й поворот камери після смерті
 RAID_LIST     := [1040, 340, 220, 570]   ; стовпчик назв і кнопок Create in the list рейдів (x, y, w, h)
 RAID_CREATE_X := 1175                    ; x кнопки Create in the list
-; loadout: рейд - 1, Infinity - 2. Bag -> кнопка "Loadout N" угорі -> рядок списку. Поточний читаємо OCR з кнопки.
+; loadout: рейд - 1, Infinity або dungeon - 2. Bag -> кнопка "Loadout N" угорі -> рядок списку. Поточний читаємо OCR з кнопки.
 BAG_BTN      := [1850, 700]              ; BAG праворуч (у лобі і в світі рейду)
 LOADOUT_BOX  := [880, 192, 230, 50]      ; кнопка "Loadout N ▼" у вікні Bag
 LOADOUT_ROWS := [[1085, 290], [1085, 394], [1085, 497]]
@@ -104,7 +114,7 @@ BROWSER    := "Anime Dimensions ahk_class Chrome_WidgetWin_1"
 JOIN_COLOR := 0x1D3570          ; темно-синя кнопка Join (сіра Create поруч не підходить)
 JOIN_BOX   := [1370, 130, 1400, 1040]   ; вузька смуга всередині кнопок Join - перший збіг згори = перша кнопка
 RESTART_GAP    := 600000   ; перезапускати Roblox не частіше, ніж раз на 10 min
-SERVER_LINK    := "https://www.roblox.com/share?code=8d0a163e5397b8478b09f95c5cd09c88&type=Server"   ; приватний сервер автора (raid.ini serverLink - свій)
+SERVER_LINK    := ""   ; no private server by default (raid.ini [raid] serverLink = your own share link)
 RESTART_GAP_DC := 60000    ; а при обриві з'єднання (Error 279) - одразу, лише не частіше раз на minилину
 UNKNOWN_ESC := 90000    ; якщо screen not recognised for стільки ms - раз тиснемо Esc (закрити застряглі меню)
 LOG_MAX     := 20000000  ; якщо за день лог виріс понад 20 МБ - відкладаємо його в logs\ і починаємо новий
@@ -131,8 +141,8 @@ fightSince := 0          ; коли почався поточний бій (0 = 
 infDrop    := false      ; бій в Infinity ended сам - чекаємо лобі, щоб його теж зняти
 ; лічильник нагород праворуч ("Rewards: 24") читаємо вбудованим OCR Windows (ocr.ps1) у фоні, раз на 5 с
 REWARD_BOX := [1560, 640, 360, 120]       ; ділянка з лічильником (з запасом - в RDP інтерфейс дрібніший)
-OCR_IN     := A_Temp "\adbot_ocr.png"
-OCR_OUT    := A_Temp "\adbot_ocr.txt"
+OCR_IN     := A_Temp "\adbot031_ocr.png"
+OCR_OUT    := A_Temp "\adbot031_ocr.txt"
 ocrPending := 0          ; коли запущено розпізнавання (0 = не чекаємо)
 lastOcr    := 0
 runTokens  := 0          ; найбільше прочитане значення лічильника за поточний забіг
@@ -144,6 +154,10 @@ dmgChanged := A_TickCount ; коли це число востаннє зміни
 lastSearch := 0          ; коли востаннє повертали камеру в пошуках боса
 farPress   := 0          ; Divine: коли спрацював скіл 1 чи 2 - за 2.5 с має з'явитись Combo, інакше бос далеко
 searchTurns := 0         ; скільки поворотів поспіль без влучань
+routeDone := false       ; dungeon: the recorded route of this run is already played
+dimRunAt := 0            ; when the recorded run of this dungeon started (0 - none waiting for RETRY)
+dimRetryAt := 0          ; when RETRY was pressed: the next ~15 s are the game reloading the run, not the lobby
+retryPending := false    ; RETRY clicked, the results screen not seen gone yet (DimRetry then arms the route)
 friendsDone := false     ; Friends Only на цьому екрані налаштувань уже перевірено
 sameReads  := 0          ; скільки свіжих читань поспіль показали ту саму шкоду (доказ, що не влучаємо)
 ; лише для діагностики (на runTokens і статистику не впливають); скидаються на Start
@@ -157,9 +171,8 @@ rdResetCombo := 0        ; ресетів без Combo за забіг
 lastNo5Reset := 0        ; коли востаннє ресетили персонажа без скіла 5
 no5Pending   := false    ; портрет змінився після респавну, вже обробленого по відліку: скіли нового персонажа ще треба перевірити
 lastLoadoutWarn := 0     ; коли востаннє писали УВАГА про рейд без loadout 1
-sessStart := 0           ; tick of the bot start (for the session length in the RUN SUMMARY line)
 pickFails := 0, pickFailHour := "", pickMissAt := 0   ; PickRaidByName: misses of this hour's raid (reset in Start)
-sess := Map("raids", 0, "raidGems", 0, "raidTokens", 0, "speedRuns", 0, "speedGems", 0, "speedTokens", 0, "infRuns", 0, "restarts", 0)   ; підсумок поточного запуску бота
+sess := Map("raids", 0, "raidGems", 0, "raidTokens", 0, "speedRuns", 0, "speedGems", 0, "speedTokens", 0, "infRuns", 0, "dimRuns", 0, "dimGems", 0, "restarts", 0)   ; підсумок поточного запуску бота
 FIGHT_STICKY := 15000    ; скільки ms після цього ще битися, якщо екран не розпізнано
 lastReset  := 0          ; коли востаннє робили Esc-R-Enter
 lastTurn   := 0          ; коли востаннє розвертались
@@ -198,9 +211,9 @@ spreadNext := 0          ; коли можна тиснути наступний
 lastCast   := 0          ; коли востаннє основний скіл справді спрацював (персонаж ще в анімації)
 curLoadout := 0          ; який loadout зараз стоїть (0 = невідомо, перевіримо в Bag)
 loadoutChecked := false  ; loadout вже прочитано після Start (коли перемикання вимкнене)
-OCR2_IN    := A_Temp "\adbot_ocr2.png"   ; окремі файли для синхронного OCR (асинхронний OCR нагород не заважає)
-OCR2_OUT   := A_Temp "\adbot_ocr2.txt"
-OCRQ       := A_Temp "\adbot_ocrq\"     ; черга запитів до OCR-сервера (див. OcrCall)
+OCR2_IN    := A_Temp "\adbot031_ocr2.png"   ; окремі файли для синхронного OCR (асинхронний OCR нагород не заважає)
+OCR2_OUT   := A_Temp "\adbot031_ocr2.txt"
+OCRQ       := A_Temp "\adbot031_ocrq\"     ; черга запитів до OCR-сервера (див. OcrCall)
 ocrPid     := 0                          ; процес OCR-сервера (0 = не запущений)
 
 ; ---------------- налаштування з raid.ini (змінюються у вікні й зберігаються одразу) ----------------
@@ -238,13 +251,18 @@ cfg := Map(
     ; 161 с без ударів. З 3000 така помилка коштує менше, тож лишаємо 3000)
     "respawnWalk", IniRead(INI, "raid", "respawnWalk", "3000"), ; потім іти вперед до боса, ms (0 = не йти)
     "respawnTurn", IniRead(INI, "raid", "respawnTurn", "95"),   ; якщо бос не прямо попереду - повернути камеру, градусів (+ вправо)
+    "infGameAuto", IniRead(INI, "raid", "infGameAuto", "0"),     ; Infinity: the game's Auto fights (like bossAuto); AOE / turn / stuck settings unused
     "bossAuto",   IniRead(INI, "raid", "bossAuto", "1"),         ; Raid / Speed Raid: the game's Auto fights, the bot only keeps it on (0 = old fight logic)
     "speedWalk",  IniRead(INI, "raid", "speedWalk", "2000"),    ; Speed Raid: walk to the boss at the start, ms
     "respawnWalkOther", IniRead(INI, "raid", "respawnWalkOther", "0"),   ; raids without knockback: walk after respawn, ms
     "noComboReset", IniRead(INI, "raid", "noComboReset", "12000"),       ; Divine: no Combo this long -> reset, ms (0 = off)
     "farWalk",    IniRead(INI, "raid", "farWalk", "2500"),      ; Divine: після 1/2 немає Combo -> вперед стільки ms with Q x3 (0 = вимк.)
     "soloRaid",   IniRead(INI, "raid", "soloRaid", "1"),        ; рейд: вмикати Friends Only (соло, без інших гравців)
-    "loadouts",   IniRead(INI, "raid", "loadouts", "0"),     ; міняти loadout: рейд - 1, Infinity - 2, Speed Raid - 3
+    "loadouts",   IniRead(INI, "raid", "loadouts", "0"),     ; міняти loadout: рейд - 1, Infinity або dungeon - 2, Speed Raid - 3
+    "dimShift",   IniRead(INI, "raid", "dimShift", "0"),         ; Dimension: start delay, ms - wait this long after the enemies show up
+    "dimFight",   IniRead(INI, "raid", "dimFight", "1"),         ; Dimension: normal fight after the run if enemies are left
+    "dimMethod",  IniRead(INI, "raid", "dimMethod", "1"),        ; Dimension route: 1 = dimension\giant\log.txt, 2 = built-in route
+    "dungeon",    IniRead(INI, "raid", "dungeon", "0"),         ; Giant Dimension (Nightmare, Hardcore, Friends Only) instead of Infinity; experimental
     "speed",      IniRead(INI, "raid", "speed", "1"),          ; Speed Raid раз на 30 min (пріоритет: рейд > speed > Infinity)
     "seekAfter",  IniRead(INI, "raid", "seekAfter", "5000"),    ; скільки ms без влучань, щоб почати пошук
     "camSens",    IniRead(INI, "raid", "camSens", "36"),          ; чутливість миші в грі x100 (0.36 -> 36): від неї залежить, на скільки px вести мишу для повороту камери
@@ -256,15 +274,15 @@ cfg := Map(
     "startDelay", IniRead(INI, "raid", "startDelay", "10"),
     "startBonus", IniRead(INI, "raid", "startBonus", "110"),    ; PARTY: бонус команди з якого % стартувати, не чекаючи startDelay
     "raid",       IniRead(INI, "raid", "raid", "1"),
+    "raidEvery",  IniRead(INI, "raid", "raidEvery", "1"),         ; raid only in hours divisible by N (1 = every hour, as before; 3 = 0, 3, 6 ...)
     "infinity",   IniRead(INI, "raid", "infinity", "1"),
     "sfx",        IniRead(INI, "raid", "sfx", "1"),                 ; короткі звуки кнопок
+    "music",      IniRead(INI, "raid", "music", "1"),               ; v0.3: music\*.m4a in the compact skin, 1% volume; on/off kept in the ini
     "infStop",    IniRead(INI, "raid", "infStop", "57:30"),      ; о котрій (хв:с) виходити з Infinity
     "createFrom", IniRead(INI, "raid", "createFrom", "59:30"),    ; з котрої (хв:с) тиснути Create у рейді
     "fightOnly",  "0")                                            ; тест: лише скіли (не зберігається)
 ; що бот востаннє створив ("raid" / "infinity") і в яку годину був рейд - щоб пам'ятати після перезапуску
 lastEntered := IniRead(INI, "state", "lastEntered", "")
-if !InStr(" raid infinity speed ", " " lastEntered " ")      ; an old raid.ini may hold the removed "dungeon"
-    lastEntered := ""
 speedDue := IniRead(INI, "state", "speedDue", "")
 try DateDiff(speedDue, A_Now, "Seconds")                  ; a corrupt value would throw on every tick
 catch
@@ -279,6 +297,8 @@ if A_Args.Length && A_Args[1] = "fight"                 ; тест бою: ли�
 #Include ui.ahk
 #Include auto_boss.ahk
 #Include rewards.ahk
+#Include raid_every.ahk
+#Include summary.ahk
 
 if A_Args.Length                                        ; "start" or "fight" - start at once, without F1
     Start()
@@ -305,7 +325,7 @@ Stat(name, n := 1) {
     today := FormatTime(, "yyyyMMdd")
     if IniRead(INI, "stats", "day", "") != today {
         IniWrite today, INI, "stats", "day"
-        for k in ["infRuns", "raids", "deaths", "raidGems", "raidTokens", "restarts", "speedRuns", "speedGems", "speedTokens"]
+        for k in ["infRuns", "raids", "deaths", "raidGems", "raidTokens", "restarts", "speedRuns", "speedGems", "speedTokens", "dimRuns", "dimGems"]
             IniWrite 0, INI, "stats", k
     }
     IniWrite IntOr0(IniRead(INI, "stats", name, "0")) + n, INI, "stats", name
@@ -442,7 +462,7 @@ ReadLootNumber(x, y) {
 RotateCam(px) {
     global camYaw
     camYaw += px
-    MouseMove A_ScreenWidth // 2, A_ScreenHeight // 2 + 150, 0
+    MouseMove GAME_W // 2, 23 + GAME_H // 2 + 150, 0
     Send "{RButton down}"
     Sleep 60
     n := Max(1, Abs(px) // 60)                           ; дрібними кроками - Roblox краще сприймає
@@ -625,15 +645,21 @@ FlushRun() {
 SetupChecks(deep := false) {
     r := []
     Add := (name, state, fix := "") => r.Push({name: name, state: state, fix: fix})
-    if A_ScreenWidth = 1920 && A_ScreenHeight = 1080
-        Add("Screen resolution 1920x1080", "ok")
+    if A_ScreenWidth >= SCR_W && A_ScreenHeight >= SCR_H
+        Add("Screen resolution " A_ScreenWidth "x" A_ScreenHeight (A_ScreenWidth = SCR_W && A_ScreenHeight = SCR_H ? "" : " (the game uses the top-left 1920x1080)"), "ok")
     else
-        Add("Screen resolution is " A_ScreenWidth "x" A_ScreenHeight, "fail", "Right-click the desktop > Display settings > Display resolution: choose 1920 x 1080.")
-    if A_ScreenDPI = 96
-        Add("Windows display scale 100%", "ok")
-    else
-        Add("Windows display scale is " Round(A_ScreenDPI / 96 * 100) "%", "fail", "Right-click the desktop > Display settings > Scale: choose 100%, then sign out and sign in again.")
+        Add("Screen resolution is " A_ScreenWidth "x" A_ScreenHeight, "fail", "Right-click the desktop > Display settings > Display resolution: choose 1920 x 1080 or more.")
     MonitorGetWorkArea(MonitorGetPrimary(), &wl, &wt, &wr, &wb)
+    cover := 23 + GAME_H - wb                             ; px of the game hidden under a bottom taskbar (scale > 100% on a 1080p screen)
+    ; the taskbar decides, not A_ScreenDPI: it is fixed at sign-in, a scale changed inside the session is only seen in the work area
+    scale := ""
+    try scale := Round(DllCall("GetDpiForSystem", "uint") / 96 * 100) "%"
+    if cover <= 0
+        Add("Windows display scale " scale (scale = "100%" ? "" : " (the game area is free)"), "ok")
+    else if cover <= 10                                   ; the r / x skill points are at y 1025: more cover hides them
+        Add("Windows display scale " scale ": the taskbar covers " cover " px of the game", "warn", "Should work. If screens are not recognised: Display settings > Scale: 100%, or auto-hide the taskbar.")
+    else
+        Add("Windows display scale is " scale ": the taskbar covers " cover " px of the game", "fail", "Turn on 'Automatically hide the taskbar', or Display settings > Scale: choose 100%, then sign out and sign in again.")
     if wl = 0 && wt = 0 && wr = A_ScreenWidth
         Add("Taskbar at the bottom", "ok")
     else
@@ -644,7 +670,7 @@ SetupChecks(deep := false) {
         Add("Bot files are missing", "fail", "Unpack the whole archive into one folder: ocr.ps1 and the img folder must lie next to RaidBot.ahk.")
     if deep {
         ; the real ocr.ps1 on a sample image: the same way the bot reads text, so the result is what the bot will get
-        out := A_Temp "\adbot_ocr_test.txt", text := ""
+        out := A_Temp "\adbot031_ocr_test.txt", text := ""
         try FileDelete(out)
         try RunWait('powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' A_ScriptDir '\ocr.ps1" "' IMGDIR 'start.png" "' out '" -Scale 1', , "Hide")
         try text := FileRead(out)
@@ -657,7 +683,9 @@ SetupChecks(deep := false) {
     }
     if hwnd := WinExist(GAME) {
         WinGetClientPos &cx, &cy, &cw, &ch, GAME
-        Log("  setup: Roblox client area " cw "x" ch " at " cx "," cy)
+        wdpi := 0
+        try wdpi := DllCall("GetDpiForWindow", "ptr", hwnd, "uint")
+        Log("  setup: Roblox client area " cw "x" ch " at " cx "," cy ", DPI script " A_ScreenDPI " / Roblox window " wdpi ", work area bottom " wb)
         if WinGetMinMax(GAME) = -1
             Add("Roblox is minimised", "fail", "Click the Roblox icon on the taskbar to open it, then maximise the window.")
         else if !(WinGetStyle(GAME) & 0xC00000)
@@ -694,8 +722,9 @@ StartupChecks() {
 }
 
 Start() {
-    global running, fightSince, infDrop, curLoadout, loadoutChecked, pickFails, pickFailHour, pickMissAt, sessStart
+    global running, fightSince, infDrop, curLoadout, loadoutChecked, dimRunAt, dimRetryAt, routeDone, dimHandled, pickFails, pickFailHour, pickMissAt, retryPending
     pickFails := 0, pickFailHour := "", pickMissAt := 0
+    dimRunAt := 0, dimRetryAt := 0, routeDone := false, dimHandled := false, retryPending := false   ; 3.11 23:56: a run stopped by F2 left the 2 min timer on - Roblox restart at once on the next start
     if !setupDone {
         Log("Run the Setup check first (press Check in the window)")
         return
@@ -705,10 +734,10 @@ Start() {
     curLoadout := 0                                      ; поки бот стояв, loadout могли змінити вручну
     for k in sess                                         ; новий запуск - новий підсумок
         sess[k] := 0
-    sessStart := A_TickCount
+    SessBegin()
     Log("start v" APP_VERSION ", order: " cfg["order"] (cfg["skillsOff"] != "" ? ", disabled: " cfg["skillsOff"] : "")
-        . ", loadouts=" cfg["loadouts"] ", raid=" cfg["raid"] ", infinity=" cfg["infinity"] ", speed=" cfg["speed"]
-        . ", soloRaid=" cfg["soloRaid"] ", resetNo5=" cfg["resetNo5"] ", infStop=" cfg["infStop"] ", bossAuto=" cfg["bossAuto"])
+        . ", loadouts=" cfg["loadouts"] ", raid=" cfg["raid"] ", raidEvery=" RaidEvery() ", infinity=" cfg["infinity"] ", speed=" cfg["speed"]
+        . ", soloRaid=" cfg["soloRaid"] ", resetNo5=" cfg["resetNo5"] ", infStop=" cfg["infStop"] (cfg["dungeon"] = "1" ? ", dimStopAt=" Format("{:02}:{:02}", StopSec() // 60, Mod(StopSec(), 60)) : "") ", bossAuto=" cfg["bossAuto"] ", infGameAuto=" cfg["infGameAuto"])
     StartupChecks()
     PlaceId()                                             ; поки гра запущена - запам'ятовуємо, куди перезаходити
     OcrServer()                                         ; OCR-сервер вантажиться заздалегідь
@@ -720,29 +749,23 @@ Start() {
     SetTimer(Tick, Max(50, Num("interval", 120)))
 }
 
-Stop() {
-    global running, sessStart
+Stop(showSummary := true) {
+    global running
     was := running
     running := false
     SetTimer(Tick, 0)
     ReleaseKeys()
     FlushRun()
-    if was
+    if was {
+        SessEnd()
         Log(SessLogLine())
-    sessStart := 0
+    }
     DllCall("SetThreadExecutionState", "uint", 0x80000000)
     PaintRun()
     SetStatus("stopped")
     Layout()
-}
-
-; one line with this run's totals (the sess counters are reset in Start)
-SessLogLine() {
-    m := sessStart ? (A_TickCount - sessStart) // 60000 : 0
-    return "RUN SUMMARY: raid " sess["raids"] " (gems " sess["raidGems"] ", tokens " sess["raidTokens"] ")"
-        . ", speed " sess["speedRuns"] " (gems " sess["speedGems"] ", tokens " sess["speedTokens"] ")"
-        . ", Infinity " sess["infRuns"] ", Roblox restarts " sess["restarts"]
-        . ", session " (m // 60) "h " Format("{:02}", Mod(m, 60)) "m"
+    if was && showSummary                                 ; not after F3 / an error stop
+        SummaryShow()
 }
 
 ; відпускаємо клавіші руху (на випадок зупинки посеред патруля чи повороту)
@@ -786,12 +809,17 @@ SetStatus(text, kind := "") {
 ; Hotbar (the thin strip at the top of the screen while the bot runs): status, time to the hourly raid,
 ; Speed Raid state and this run's counters. Refreshed on every status change and twice a second.
 MiniUpdate() {
-    left := 3600 - SecOfHour()
+    left := RaidLeft()
     sLeft := speedDue ? DateDiff(speedDue, A_Now, "Seconds") : 0
+    if skin = "compact" {                                  ; Monoline hotbar of the compact skin
+        HotbarDraw(cfg["raid"] = "1" ? ClockTxt(left) : ""
+            , cfg["speed"] = "1" ? (sLeft <= 0 ? "ready" : Format("{:02}:{:02}", Min(sLeft, 5999) // 60, Mod(sLeft, 60))) : "", lastStatus)
+        return
+    }
     s := (running ? "●  " : "○  ") lastStatus
     if running {
         if cfg["raid"] = "1"
-            s .= "   │   Raid " Format("{:02}:{:02}", left // 60, Mod(left, 60))
+            s .= "   │   Raid " ClockTxt(left)
         if cfg["speed"] = "1"
             s .= "   │   Speed " (sLeft <= 0 ? "ready" : Format("{:02}:{:02}", Min(sLeft, 5999) // 60, Mod(sLeft, 60)))
     }
@@ -874,7 +902,7 @@ Tick() {
         }
         ; усі координати розраховані на Roblox на весь основний монітор; якщо вікно переїхало
         ; (наприклад, після вимкнення/ввімкнення монітора) - повертаємо його
-        WinGetClientPos &cx, , &cw, &ch, GAME
+        WinGetClientPos &cx, &cy, &cw, &ch, GAME
         static fixTries := 0
         if GameSizeOk(cw, ch)
             fixTries := 0
@@ -887,14 +915,14 @@ Tick() {
             fixTries++
             Log("WARNING: the Roblox window could not be set to " GAME_W "x" GAME_H " (now " cw "x" ch ") - screens may not be recognised")
         }
-        if cx != 0 || cw != A_ScreenWidth {
+        if cx != 0 || Abs(cy - 23) > 2 || cw != GAME_W {     ; on a screen taller than 1080 the window can also slide down
             static badPos := 0, badSince := 0
             if A_TickCount - badSince > 60000
                 badPos := 0
             badPos++, badSince := A_TickCount
             if badPos > 4 {                                   ; taskbar on the left/right or a second monitor: moving does not help
-                Log("ERROR: the Roblox window cannot be placed at x=0 with the full screen width (client x=" cx ", w=" cw "). Put the taskbar at the bottom.")
-                Stop()
+                Log("ERROR: the Roblox window cannot be placed at x=0 with width " GAME_W " (client x=" cx ", w=" cw "). Put the taskbar at the bottom.")
+                Stop(false)
                 MsgBox "Roblox cannot be placed correctly (client x=" cx ", width=" cw ").`n`nPut the Windows taskbar at the bottom of the screen and start the bot again.", "AD Bot", "Icon! T30"
                 return
             }
@@ -921,13 +949,27 @@ SecOfHour() {
     return Integer(A_Min) * 60 + Integer(A_Sec)
 }
 
+; Second of the hour when the bot leaves Infinity / Giant for the raid
+StopSec() {
+    return cfg["dungeon"] = "1" ? MinSec(cfg["createFrom"], 59 * 60 + 30) - DIM_LEAD : MinSec(cfg["infStop"], 57 * 60 + 30)
+}
+
 ; Куди зараз треба (пріоритет: рейд > Speed Raid > Infinity):
 ; "raid" (перші minилини години, якщо цієї години рейду ще не було, і з infStop - підготовка),
 ; "speed" (Speed Raid знову доступний - раз на 30 min), "infinity" (решта часу) або "none" (режими вимкнені - лише бій).
 Target() {
     static last := ""
+    global runGoal
+    static skipKey := ""
     t := PickTarget(&why)
-    if t != last {                                        ; every change of the goal is explained in the log
+    if running
+        runGoal := t                                      ; shown by the compact skin
+    note := t != "raid" ? RaidSkipNote() : ""             ; raidEvery: this hour has no raid - said once per hour
+    hk := FormatTime(, "yyyyMMddHH")
+    if note != "" && skipKey != hk {
+        skipKey := hk, last := t
+        Log("goal: " t " (" note ")")
+    } else if t != last {                                 ; every change of the goal is explained in the log
         last := t
         Log("goal: " t " (" why ")")
     }
@@ -937,11 +979,11 @@ Target() {
 PickTarget(&why) {
     raidOn := cfg["raid"] = "1"
     infOn := cfg["infinity"] = "1"
-    if raidOn && SecOfHour() >= MinSec(cfg["infStop"], 57 * 60 + 30) {
-        why := "the hour is ending, going for the raid"
+    if raidOn && SecOfHour() >= StopSec() && RaidNextOk() {
+        why := "the hour is ending, going for the raid" (cfg["dungeon"] = "1" ? " (Giant: last run ends by createFrom-" DIM_LEAD " s)" : "")
         return "raid"
     }
-    if raidOn && Integer(A_Min) < RAID_WINDOW && raidDoneKey != FormatTime(, "yyyyMMddHH") {
+    if raidOn && Integer(A_Min) < RAID_WINDOW && RaidHourOk(Integer(A_Hour)) && raidDoneKey != FormatTime(, "yyyyMMddHH") {
         why := "no raid yet this hour"
         return "raid"
     }
@@ -952,11 +994,19 @@ PickTarget(&why) {
     speedWhy := cfg["speed"] != "1" ? "Speed Raid is off"
         : speedDue && DateDiff(A_Now, speedDue, "Seconds") < 0 ? "next Speed Raid at " FormatTime(speedDue, "HH:mm")
         : "Speed Raid is not started after minute " SPEED_LAST_MIN " while the raid is on"
+    if cfg["dungeon"] = "1" {
+        why := speedWhy
+        return "dungeon"
+    }
     if infOn {
         why := speedWhy
         return "infinity"
     }
     why := speedWhy
+    if raidOn && !RaidHourOk(Integer(A_Hour)) && !RaidNextOk() {
+        why := RaidSkipNote()
+        return "none"
+    }
     return raidOn ? "raid" : "none"
 }
 
@@ -965,7 +1015,7 @@ PickTarget(&why) {
 SpeedReady() {
     if cfg["speed"] != "1" || (speedDue && DateDiff(A_Now, speedDue, "Seconds") < 0)
         return false
-    return cfg["raid"] != "1" || Integer(A_Min) < SPEED_LAST_MIN
+    return cfg["raid"] != "1" || !RaidNextOk() || Integer(A_Min) < SPEED_LAST_MIN
 }
 
 ; Speed Raid став доступний, а ми в Infinity: вихід з Infinity і повернення коштують ~2.5 min бою.
@@ -977,7 +1027,7 @@ SpeedWait() {
     static noted := "-"
     if speedDue && DateDiff(A_Now, speedDue, "Seconds") > 12 * 60
         return false
-    if cfg["raid"] = "1" && MinSec(cfg["infStop"], 57 * 60 + 30) - SecOfHour() <= 10 * 60
+    if cfg["raid"] = "1" && RaidNextOk() && StopSec() - SecOfHour() <= 10 * 60
         why := "raid is near - will do it when in the lobby anyway"
     else if fightSince && A_TickCount - fightSince > 30 * 60000
         why := "Infinity ends soon by itself - will do it in the lobby"
@@ -996,9 +1046,11 @@ SetEntered(what) {
 
 ; Кожен тік визначаємо, що на екрані, і робимо один відповідний крок.
 Step() {
-    global partySince, lastCreate, lastFight, lastReset, raidDoneKey, unknownSince, watchStep, raidWalkDue, patrolIdx, friendsDone
+    global partySince, lastCreate, lastFight, lastReset, raidDoneKey, unknownSince, watchStep, raidWalkDue, patrolIdx, friendsDone, routeDone, dimRunAt
     global fightSince, infDrop, portraitSig, walkAt, infLootDone, lastDmg, dmgChanged, searchTurns, raidShotDone, sameReads, learnLeft, comboSeen, lastCombo, lastComboCheck, camYaw, afterRespawn, wasDead, lastRespawnAt, farPress, lastSearch, lastAuto, autoOffAt
     global autoOffAt, charIdx, rewardRaw, rewardReads, rewardRepeat, rdChanges, rdResetNo5, rdResetCombo, lastNo5Reset, lastLoadoutWarn, no5Pending
+    global dimHandled                        ; was local here: the reset at the route start never reached DimRetry (only the 1st run per Start was counted/read)
+    RewardsPoll()                           ; Dimension gem number read in the background
     prevUnknown := unknownSince              ; скидається на кожному тіку, де екран розпізнано
     unknownSince := 0
     if !prevUnknown
@@ -1008,6 +1060,12 @@ Step() {
         return
     }
     goal := Target()
+    ; Infinity: second fight signal - the red AUTO in the HUD; with the game's Auto on, its AUTO ON look too (a RETRY seen
+    ; there on the results is harmless: LeaveInfinity handles the results before any fight code)
+    autoOff := lastEntered = "infinity" && (AutoOffVisible() || cfg["infGameAuto"] = "1" && AutoOnVisible())
+    static autoOffLogged := false, skipLogAt := 0
+    if !fightSince && !autoOff
+        autoOffLogged := false
     b := ENEMIES_BOX
     ; бій: шукаємо лише червоні літери ENEMIES LEFT (фон ромба напівпрозорий, тому він "прозорий" у картинці)
     ; в еталоні лише насичено-червоні пікселі літер: краї літер змішуються з фоном і різняться від мапи до мапи
@@ -1016,19 +1074,23 @@ Step() {
         || FindImg("enemies_left.png", &x, &y, b[1], b[2], b[3], b[4], "*80 *TransFF00FF")
     ; виходимо з Infinity на рейд, а ми вже в лобі (видно PLAY): це не бій. 29.10 22:00 і 23:00 бот після LEAVE
     ; у лобі 12 min тиснув Esc-R-Enter - на меню Esc хибно "бачив" ENEMIES LEFT, "липкий" бій не закінчувався
-    ; 4.11 22:34: start in the lobby with goal infinity and lastEntered=infinity from the ini: the pink lobby matched ENEMIES LEFT,
-    ; the bot "fought" in the lobby. But 4.11 22:51 play.png also matched the bright floor at Infinity wave 40, so without the
-    ; goal condition PLAY counts only in the first 20 s of a "fight" (a lobby false fight is caught on its first ticks).
-    if (lastEntered = "infinity" && goal != "infinity" || cfg["bossAuto"] = "1" && BossFight()
-            || !fightSince || A_TickCount - fightSince < 20000)
-            && (inFight || A_TickCount - lastFight < FIGHT_STICKY)
-            && FindImg("play.png", &px, &py, 1500, 800, 1920, 1060) {
+    ; 4.11: also after a dungeon - F3 in the lobby with lastEntered=dungeon "saw" ENEMIES LEFT and waited for the giants there
+    lobbyChk := (lastEntered = "infinity" && goal != "infinity" || lastEntered = "dungeon" || cfg["bossAuto"] = "1" && BossFight()) && (inFight || A_TickCount - lastFight < FIGHT_STICKY)
+    if lobbyChk && autoOff {
+        if A_TickCount - skipLogAt > 60000
+            skipLogAt := A_TickCount, Log("lobby check skipped: AUTO-off visible (Infinity)")
+    } else if lobbyChk && SeePlay(&px, &py) {
         if inFight || A_TickCount - lastFight < FIGHT_STICKY - 1000
             SetStatus("lobby (PLAY visible) - not a fight, not pressing Esc-R-Enter")
         inFight := false
         lastFight := A_TickCount - FIGHT_STICKY
     }
     inFight := AutoRunOn(inFight)                         ; bossAuto: the raid / Speed Raid run stays one fight
+    if !inFight && autoOff {
+        inFight := true
+        if !autoOffLogged
+            autoOffLogged := true, Log("fight: AUTO-off visible, ENEMIES LEFT not matched (Infinity)")
+    }
     if inFight {
         partySince := 0
         lastFight := A_TickCount
@@ -1057,8 +1119,33 @@ Step() {
     ; ще до "липкого" бою (FIGHT_STICKY 15 s left): гра сама телепортує саме через ~15 с, тож пізніше LEAVE вже не встигнути
     ; і навіть коли ENEMIES LEFT "видно" (тьмяний HUD під екраном результатів): інакше Esc-R-Enter виходу на рейд
     ; тисне Enter = RETRY (29.10 21:57: після LEAVE новий забіг, 12 min у Infinity і пропущений рейд 22:00)
-    if lastEntered = "infinity" && LeaveInfinity()
+    ; no RETRY 2 min after the run started (a run takes ~47 s to the results): stuck somewhere - join again
+    if lastEntered = "dungeon" && dimRunAt && A_TickCount - dimRunAt > 120000 {
+        dimRunAt := 0
+        Screenshot("dim_noretry")
+        RestartRoblox("Dimension: no RETRY 2 min after the run started", , 60000)
         return
+    }
+    ; results first: the dim ENEMIES LEFT HUD shows under them too, and the route must not start there
+    if lastEntered = "dungeon" && routeDone && DimRetry()
+        return
+    if (lastEntered = "infinity" || lastEntered = "dungeon") && LeaveInfinity()
+        return
+    ; dungeon: the first fight frame starts the recorded route (blocks until it is played); after it the normal fight
+    ; goes on if anything is left. Every results screen re-arms it, so a retried run (by the bot or the game) walks again
+    if inFight && lastEntered = "dungeon" && !routeDone {
+        routeDone := true, dimRunAt := A_TickCount, dimHandled := false
+        RunRoute(DimRoute())
+        return
+    }
+    ; big "TELEPORT" in the middle for 10+ s after the run: a mob was missed and the way on stays shut - a reset does
+    ; not help there, only joining Roblox again
+    if inFight && lastEntered = "dungeon" && routeDone && DimStuck()
+        return
+    if inFight && lastEntered = "dungeon" && cfg["dimFight"] != "1" {
+        SetStatus("Dimension: run done, no fight after it (Dimension settings)")
+        return
+    }
     if inFight || A_TickCount - lastFight < FIGHT_STICKY {
         if inFight && BossFight() {
             if lastEntered = "raid"
@@ -1125,6 +1212,17 @@ Step() {
                 Sleep 800
                 HoldKey("Enter")
                 lastReset := A_TickCount
+            }
+            return
+        }
+        ; Infinity with the game's Auto: no skills, AOE, turns or walks - only keep Auto on (as in the raid)
+        if lastEntered = "infinity" && cfg["infGameAuto"] = "1" {
+            if inFight && RespawnScreen()
+                SetStatus("death: waiting for respawn (Auto stays on)")
+            else {
+                if inFight && A_TickCount - fightSince > 2000
+                    AutoEnsure()
+                SetStatus("Infinity: Auto, game fights")
             }
             return
         }
@@ -1309,6 +1407,12 @@ Step() {
         FightCount()
         fightSince := 0
     }
+    ; after RETRY the screen changes for a few seconds; lobby / menu pictures seen then must not send the bot to the
+    ; Bag or the modes menu (3.11 20:33 and 20:36: "loadout 2" and "closing the menu" right after RETRY)
+    if lastEntered = "dungeon" && A_TickCount - dimRetryAt < 15000 {
+        SetStatus("Dimension: RETRY pressed, waiting for the run")
+        return
+    }
     if goal = "none" {                                                    ; режими вимкнені: меню не чіпаємо
         SetStatus("modes disabled, waiting for a fight")
         return
@@ -1338,7 +1442,7 @@ Step() {
         FlushRun()                                                        ; попередній забіг - у суми
         infLootDone := false, raidShotDone := false
         lastDmg := "", dmgChanged := A_TickCount, searchTurns := 0, sameReads := 0   ; новий бій - шкоду рахуємо заново
-        Stat(lastEntered = "raid" ? "raids" : "infRuns")                ; ще один забіг у статистику
+        Stat(lastEntered = "raid" ? "raids" : lastEntered = "dungeon" ? "dimRuns" : "infRuns")                ; ще один забіг у статистику
         raidWalkDue := true                                              ; у новому бою знову підійдемо до боса
         AutoReset()
         learnLeft := 30, comboSeen := false, lastCombo := 0
@@ -1346,6 +1450,7 @@ Step() {
         patrolIdx := 0                                                    ; новий забіг - персонаж знову в центрі
         rewardRaw := "", rewardReads := 0, rewardRepeat := 0              ; діагностичні лічильники рейду - заново
         charIdx := 1, autoOffAt := 0, rdChanges := 0, rdResetNo5 := 0, rdResetCombo := 0, lastNo5Reset := 0, no5Pending := false
+        routeDone := false
         ClickImg("start.png", x, y)
         ParkMouse()
         partySince := 0
@@ -1354,6 +1459,10 @@ Step() {
     }
     partySince := 0
     if FindImg("create_final.png", &x, &y) {                              ; налаштування рейду / данжу
+        if lastEntered = "dungeon" && goal = "dungeon" && !friendsDone {  ; set the options first, never press Create with wrong ones
+            friendsDone := DungeonSetup(x, y)
+            return
+        }
         ; соло-рейд: toggle Friends Only - ліворуч від кнопки Create, у тому ж рядку
         if lastEntered = "raid" && cfg["soloRaid"] = "1" && !friendsDone {
             friendsDone := true
@@ -1416,6 +1525,14 @@ Step() {
         }
         return
     }
+    if hasInf && goal = "dungeon" {                                       ; dungeon list: find Giant Dimension by name
+        if PickDungeon() {
+            SetEntered("dungeon")
+            friendsDone := false
+            Sleep 1500
+        }
+        return
+    }
     if hasInf && goal = "infinity" {
         SetStatus("selecting Infinite Mode")
         SetEntered("infinity")
@@ -1425,7 +1542,7 @@ Step() {
         return
     }
     if hasInf {                                                           ; список данжів, але час рейду
-        SetStatus("closing the Infinite Mode list (raid time)")
+        SetStatus("closing the dungeon list (raid time)")
         ClickXY(1227, 261)                                                ; хрестик вікна
         ParkMouse()
         Sleep 1000
@@ -1449,7 +1566,7 @@ Step() {
         tabLast := A_TickCount
         if A_TickCount - tabSince > 20000 && A_TickCount - tabShot > 300000 {
             tabShot := A_TickCount
-            Log("  Create tab for 20 s: the " (goal = "infinity" ? "Infinite Mode" : rd[3]) " card is not found in the list")
+            Log("  Create tab for 20 s: the " (goal = "dungeon" ? "dungeon" : rd[3]) " card is not found in the list")
             Screenshot("list_nomatch")
         }
         SetStatus("Create tab")
@@ -1463,6 +1580,11 @@ Step() {
             friendsDone := false
             Sleep 1500
         }
+        if goal = "dungeon" && PickDungeon() {
+            SetEntered("dungeon")
+            friendsDone := false
+            Sleep 1500
+        }
         ; 4.11: the Halloween Dimension event card pushed Infinite Mode down and infinite.png stopped matching - pick it by name
         if goal = "infinity" && PickInfinity() {
             SetEntered("infinity")
@@ -1471,7 +1593,7 @@ Step() {
         }
         return
     }
-    if goal = "infinity" && FindImg("dimension.png", &x, &y, 260, 880, 620, 990) {   ; меню режимів: у данжі (лише білі літери DIMENSION)
+    if (goal = "infinity" || goal = "dungeon") && FindImg("dimension.png", &x, &y, 260, 880, 620, 990) {   ; меню режимів: у данжі (лише білі літери DIMENSION)
         if MenuLoadoutWrong(2)
             return
         SetStatus("entering Dimension")
@@ -1486,7 +1608,7 @@ Step() {
         SpeedEnter(x, y)
         return
     }
-    if FindImg("raid_mode.png", &x, &y, 0, 860, A_ScreenWidth, 1000) {                                 ; меню режимів: у світ рейду
+    if FindImg("raid_mode.png", &x, &y, 0, 860, SCR_W, 1000) {                                 ; меню режимів: у світ рейду
         if goal = "speed" {                                               ; картки SPEED RAID не впізнали
             Log("  modes menu: SPEED RAID not visible - postponing 10 min")
             Screenshot("speed_menu")
@@ -1506,13 +1628,13 @@ Step() {
         WaitLoaded()
         return
     }
-    if FindImg("play.png", &x, &y, 1500, 800, 1920, 1060) {               ; лише білі літери PLAY праворуч унизу (фон анімований)
+    if SeePlay(&x, &y) {               ; лише білі літери PLAY праворуч унизу (фон анімований)
         if infDrop {
             infDrop := false
             Log("lobby after Infinity was cut off")
             Screenshot("inf_lobby")
         }
-        if goal = "raid" || goal = "infinity" || goal = "speed" {   ; перед входом - потрібний loadout (рейд 1, Infinity 2, Speed 3)
+        if goal = "raid" || goal = "infinity" || goal = "dungeon" || goal = "speed" {   ; перед входом - потрібний loadout (Infinity / dungeon - 2)
             if cfg["loadouts"] != "1"
                 CheckLoadoutOnce()                                        ; перемикання вимкнене - лише читаємо, що стоїть
             EnsureLoadout(goal = "raid" ? 1 : goal = "speed" ? 3 : 2)
@@ -1585,8 +1707,8 @@ Step() {
 ; на "Teleporting in 0"). Шаблон перевірено на 3310 кадрах: збіги лише на екранах результатів.
 ; 3 натискання не допомогли - перезапуск гри
 LeaveInfinity() {
-    global lastReset, lastFight
-    static leaveAt := 0, leaveN := 0
+    global lastReset, lastFight, routeDone, dimRetryAt, dimRunAt, dimHandled
+    static leaveAt := 0, leaveN := 0, resSeen := false
     if !FindImg("leave.png", &x, &y, 1000, 680, 1450, 840) && !FindImg("leave.png", &x, &y, 1000, 680, 1450, 840, "*110 *TransFF00FF") {
         ; the button is translucent, so its colour depends on the scene behind (3.11: the template missed it and the game's
         ; AUTO RETRY looped Infinity for hours). Fallback: the light REWARDS panel, confirmed by OCR, then click the fixed LEAVE spot
@@ -1600,12 +1722,21 @@ LeaveInfinity() {
             if Min((c >> 16) & 255, (c >> 8) & 255, c & 255) > 200
                 light++
         }
-        if light < 4 || !RegExMatch(OcrRegion([560, 230, 1000, 700]), "i)rewards|auto retry|retry|leave")
+        if light < 4 {                                    ; no bright panel: skip the OCR (it costs ~0.3 s, this runs every 2.5 s in fights)
+            resSeen := false
             return false
-        Log("  Infinity results found by OCR (LEAVE picture did not match) - pressing LEAVE")
+        }
+        ocrTxt := OcrRegion([560, 230, 1000, 700])
+        if !RegExMatch(ocrTxt, "i)rewards|auto retry|retry|leave") {
+            resSeen := false                              ; no results screen: the next one is read again
+            return false
+        }
+        kind := RegExMatch(ocrTxt, "i)PITY|ACCESSORY") ? "Dimension" : (lastEntered = "dungeon" ? "Dimension" : "Infinity")
+        Log("  " kind " results found by OCR (LEAVE picture did not match)")
         Screenshot("leave_nomatch")
         x := 1260, y := 771
     }
+    routeDone := false, dimRunAt := 0                     ; results seen: the next run plays the route again
     ; поки йде телепорт - ні "липкого" бою, ні Esc-R-Enter (30 s left)
     lastFight := A_TickCount - FIGHT_STICKY
     lastReset := A_TickCount + 30000 - RESET_EVERY
@@ -1619,6 +1750,27 @@ LeaveInfinity() {
         }
         leaveAt := A_TickCount
         ReleaseKeys()
+        ; Dimension: no counting, just RETRY at once - the same run again, the recorded route plays when the enemies show.
+        ; RETRY is 593 px left of LEAVE (results screen 3.11). At raid time (goal is no longer the dungeon) - LEAVE.
+        first := lastEntered = "dungeon" && !dimHandled
+        if first {
+            dimHandled := true
+            DimCardsStart()
+        }
+        if lastEntered = "dungeon" && Target() = "dungeon" {
+            SetStatus("Dimension results: pressing RETRY")
+            routeDone := false, dimRetryAt := A_TickCount
+            if first
+                Stat("dimRuns")
+            ClickXY(x + 90 - 593, y + 24)
+            ParkMouse()
+            Sleep 800
+            return true
+        }
+        if lastEntered != "dungeon" && !resSeen {
+            resSeen := true
+            ResultLineStart("infinity")                   ; Time / Wave line, read in the background before LEAVE
+        }
         SetStatus("Infinity results: pressing LEAVE")
         ClickXY(x + 90, y + 24)
         ParkMouse()
@@ -1629,7 +1781,7 @@ LeaveInfinity() {
 
 ; ------------------------ Допоміжні функції ------------------------
 ; знімок основного екрана в SHOTDIR (PNG через GDI+); понад SHOT_MAX найстаріші знімки видаляємо
-Screenshot(tag, sx := 0, sy := 0, w := A_ScreenWidth, h := A_ScreenHeight) {
+Screenshot(tag, sx := 0, sy := 0, w := 1920, h := 1080) {            ; = SCR_W x SCR_H (defaults must be literals)
     try {
         DirCreate SHOTDIR
         file := SHOTDIR FormatTime(, "yyyyMMdd_HHmmss") "_" tag ".png"
@@ -1675,7 +1827,7 @@ SaveRegion(file, sx, sy, w, h) {
     return -1
 }
 
-FindImg(name, &x, &y, x1 := 0, y1 := 0, x2 := A_ScreenWidth, y2 := A_ScreenHeight, opts := "") {
+FindImg(name, &x, &y, x1 := 0, y1 := 0, x2 := 1920, y2 := 1080, opts := "") {   ; = SCR_W x SCR_H
     x := 0
     y := 0
     file := IMGDIR name
@@ -1689,7 +1841,7 @@ FindImg(name, &x, &y, x1 := 0, y1 := 0, x2 := A_ScreenWidth, y2 := A_ScreenHeigh
         return false
     ; запасний еталон "назва_2.png" - той самий напис у дещо іншому масштабі (наприклад, гра в RDP-сесії)
     ; play_2.png: only the letter cores (2 px of every edge cut) - PLAY pulses, and 3.11 the full letters matched only at one size
-    ; enemies_left_2.png: the same letters on a bright map (a bright desert map, 4.11) - lighter red, 31 of 350 px were off at *80
+    ; enemies_left_2.png: the same letters on a bright map (Giant Dimension sand, 4.11) - lighter red, 31 of 350 px were off at *80
     alt := IMGDIR StrReplace(name, ".png", "_2.png")
     if !found && FileExist(alt)
         try found := ImageSearch(&x, &y, x1, y1, x2, y2, opts " " alt)
@@ -1727,6 +1879,19 @@ Num(key, def) {
         return def
 }
 
+; PLAY in the lobby; when the image does not match, the BAG text (OCR) says it is the lobby and PLAY is at its usual place.
+; 06.11: a user's "Activate Windows" watermark lies over PLAY - play.png never matched, the bot waited for hours.
+; With a menu open the screen is dimmed and BAG is not read, so this does not fire over menus.
+SeePlay(&x, &y) {
+    if FindImg("play.png", &x, &y, 1500, 800, 1920, 1060)
+        return true
+    if !InStr(OcrRegion([1790, 712, 110, 56]), "BAG")
+        return false
+    x := 1760 - 90, y := 942 - 28                         ; top-left of play.png (180x56) around the PLAY centre 1760,942
+    Log("  PLAY not matched, BAG text seen - lobby, PLAY at its usual place")
+    return true
+}
+
 ClickImg(name, x, y) {
     size := PngSize(IMGDIR name)
     ClickXY(x + size[1] // 2, y + size[2] // 2)
@@ -1750,7 +1915,7 @@ WaitLoaded() {
     t0 := A_TickCount
     Sleep 3000
     while A_TickCount - t0 < 60000 && running {
-        if FindImg("play.png", &x, &y, 1500, 800, 1920, 1060) {
+        if SeePlay(&x, &y) {
             Log("  lobby loaded in " Round((A_TickCount - t0) / 1000, 1) " s")
             Sleep 500                            ; дати інтерфейсу домалюватись
             return
@@ -1883,24 +2048,13 @@ PartyBonus() {
     return val
 }
 
-; Infinite Mode in the Create list by name; after a miss, waits a minute before searching again
-PickInfinity() {
-    static retryAt := 0
-    if A_TickCount < retryAt
-        return false
-    if PickRaidByName(["", 0, "Infinite Mode", "i)Infinite"], false)
-        return true
-    retryAt := A_TickCount + 60000
-    return false
-}
-
 ; Рейд без еталона: шукаємо його назву в списку рейдів (OCR), гортаючи колесом від початку,
 ; і тиснемо Create під назвою. true - натиснули.
 PickRaidByName(rd, isRaid := true) {
     global raidDoneKey, pickFails, pickFailHour, pickMissAt
     b := RAID_LIST
     SetStatus("looking for " rd[3] " in the list")
-    ListWheel("Up", 80)                                   ; на початок списку (private server: more raids above the Infinite Mode)
+    ListWheel("Up", 80)                                   ; на початок списку (private server: more raids above the dungeons)
     Sleep 1500                                            ; 4.11: the list keeps sliding after the wheel - OCR read an empty moving list
     prev := "-", empty := 0
     Loop 80 {
@@ -1927,7 +2081,7 @@ PickRaidByName(rd, isRaid := true) {
             break
         prev := all
         ; 4 notches (~half a row): with 10 the title at the bottom edge (its Create still hidden) jumped off the top
-        ; on the next step - 4.11 a raid on the private server was skipped this way
+        ; on the next step - 4.11 Giant Dimension on the private server was skipped this way
         ListWheel("Down", 2, 200)                         ; 4.11 user: down slowly and a little at a time
         Sleep 500                                         ; let the list stop before the next read
     }
@@ -1953,6 +2107,278 @@ PickRaidByName(rd, isRaid := true) {
         ParkMouse()
     }
     return false
+}
+
+; Infinite Mode in the Create list by name; after a miss, waits a minute before searching again
+PickInfinity() {
+    static retryAt := 0
+    if A_TickCount < retryAt
+        return false
+    if PickRaidByName(["", 0, "Infinite Mode", "i)Infinite"], false)
+        return true
+    retryAt := A_TickCount + 60000
+    return false
+}
+
+; Giant Dimension in the Create list; after a miss, waits a minute before searching again
+PickDungeon() {
+    static retryAt := 0
+    if A_TickCount < retryAt
+        return false
+    if PickRaidByName(DUNGEON, false)
+        return true
+    retryAt := A_TickCount + 60000
+    return false
+}
+
+; Dungeon Create window: Nightmare, Hardcore on, Friends Only on. (x, y) - top-left of the Create button picture.
+; Offsets are read from a 1920x1080 screenshot of the window (toggles left of Create, difficulty list above them).
+; The chosen options are listed top right ("Nightmare / Hardcore / Friends Only") - read with OCR as a check.
+DungeonSetup(x, y) {
+    static fails := 0
+    box := [x - 29, y - 493, 200, 160]
+    Loop 3 {
+        SetStatus("dungeon: Nightmare, Hardcore, Friends Only")
+        if !InStr(OcrRegion(box), "ightmare") {
+            MouseMove x - 290, y - 190, 0                    ; list to the top: Easy, Hard, Nightmare (partly visible)
+            Sleep 100
+            MouseMove x - 299, y - 190, 0
+            Sleep 100
+            Loop 5 {
+                Send "{WheelUp}"
+                Sleep 25
+            }
+            Sleep 300
+            ClickXY(x - 299, y - 136)
+            ParkMouse()
+            Sleep 600
+        }
+        if !ToggleGreen(x - 122, y - 58) {                   ; Hardcore
+            ClickXY(x - 92, y - 58)
+            ParkMouse()
+            Sleep 500
+        }
+        if !ToggleGreen(x - 122, y + 22) {                   ; Friends Only
+            ClickXY(x - 92, y + 22)
+            ParkMouse()
+            Sleep 500
+        }
+        nm := InStr(OcrRegion(box), "ightmare"), hc := ToggleGreen(x - 122, y - 58), fo := ToggleGreen(x - 122, y + 22)
+        if nm && hc && fo {
+            Log("  dungeon options set: Nightmare, Hardcore, Friends Only")
+            fails := 0
+            return true
+        }
+        Log("  dungeon options: Nightmare " (nm ? "ok" : "NOT set") ", Hardcore " (hc ? "ok" : "NOT set") ", Friends Only " (fo ? "ok" : "NOT set"))
+    }
+    if ++fails = 1
+        Screenshot("dungeon_setup")
+    return false
+}
+
+; the left part of an ON toggle is green; OFF has the light knob there
+ToggleGreen(px, py) {
+    c := Integer(PixelGetColor(px, py))
+    r := c >> 16 & 0xFF, g := c >> 8 & 0xFF, b := c & 0xFF
+    return g > 130 && g > r + 40 && g > b + 20
+}
+
+; Plays a recorded route: [ms, "kd"/"ku", key code] from the start. Starts when the first enemies are seen ahead,
+; as when it was recorded (not played if they are not seen in 20 s), every step shifted by dimShift ms. Each step is timed against the start with a 1 ms timer,
+; so nothing adds up (Sleep alone is 15.6 ms coarse). SendInput: no key delay, exactly like the recording.
+RunRoute(route) {
+    shift := Num("dimShift", 0)
+    SetStatus("Dimension: waiting for the first enemies")
+    t0 := A_TickCount
+    ; orange things in the lobby or the modes menu are not the giants (3.11 20:36 the run started in the menu)
+    h := ENEMIES_HOME
+    seen := false, strong := 0
+    while running && !seen && A_TickCount - t0 < 20000 {
+        n := MobsCount()
+        hud := n >= 500 && FindImg("enemies_left.png", &px, &py, h[1] - 12, h[2] - 12, h[1] + 66, h[2] + 38, "*80 *TransFF00FF")
+        strong := n >= 800 ? strong + 1 : 0
+        ok := (hud || strong >= 3) && !FindImg("play.png", &px, &py, 1500, 800, 1920, 1060)
+            && !FindImg("dimension.png", &px, &py, 260, 880, 620, 990)
+        if ok && hud
+            seen := true
+        else if ok {                             ; 05.11: the giants stood in the dark for seconds before the HUD showed - the clear look of them is enough
+            seen := true
+            Log("  giants seen without the ENEMIES LEFT HUD (" n " px)")
+        } else
+            Sleep 30
+    }
+    if !seen {                                            ; not at the spawn (or another view): walking blind would go wrong
+        Log("  dungeon route not started: the first enemies were not seen in 20 s - normal fight")
+        Screenshot("route_nostart")
+        return
+    }
+    Log("  dungeon route started (method " (cfg["dimMethod"] = "2" ? 2 : 1) ", " (route == DUNGEON_ROUTE ? "built-in" : "log.txt") ", " route.Length " steps)")
+    SetStatus("dungeon: playing the recorded route")
+    DllCall("winmm\timeBeginPeriod", "uint", 1)
+    t0 := A_TickCount, down := Map()
+    for st in route {
+        due := st[1] + shift
+        while running && A_TickCount - t0 < due - 1
+            Sleep Min(10, due - (A_TickCount - t0))
+        if !running
+            break
+        if st[2] = "mm" {
+            DllCall("mouse_event", "uint", 1, "int", Integer(st[3]), "int", Integer(st[4]), "uint", 0, "ptr", 0)
+            continue
+        }
+        SendInput "{" st[3] (st[2] = "kd" ? " down}" : " up}")
+        if st[2] = "kd"
+            down[st[3]] := true
+        else if down.Has(st[3])
+            down.Delete(st[3])
+    }
+    for k in down                                         ; stopped in the middle: release what is still held
+        SendInput "{" k " up}"
+    DllCall("winmm\timeEndPeriod", "uint", 1)
+    Log("  dungeon route " (running ? "done in " Round((A_TickCount - t0) / 1000, 1) " s" : "stopped"))
+}
+
+; The run to play: dimension\giant\log.txt when it is there (edited in the Recorder from the Dimension page; read
+; again whenever the file changes, so edits work without a restart), else the built-in DUNGEON_ROUTE.
+; Steps: [ms from the start, "kd"/"ku", key code] or [ms, "mm", dx, dy]; "wait" rows of the Recorder only add time.
+; dimMethod 2 = always the built-in route; 1 = log.txt (built-in with a warning when the file is missing).
+; Row "kp" (key press, col 5 = hold ms) becomes kd at t and ku at t + hold; the route is then sorted by time (stable).
+DimRoute() {
+    static at := "", route := 0, atMethod := "", warned := false
+    method := cfg["dimMethod"] = "2" ? "2" : "1"
+    file := DIM_DIR "log.txt"
+    if method = "2"
+        return DUNGEON_ROUTE
+    if !FileExist(file) {
+        if !warned {
+            warned := true
+            Log("  WARNING: Method 1 but dimension\giant\log.txt is missing - built-in route")
+        }
+        return DUNGEON_ROUTE
+    }
+    warned := false
+    t := FileGetTime(file)
+    if t = at && atMethod = method
+        return route
+    r := []
+    try txt := FileRead(file)
+    catch
+        txt := ""
+    for line in StrSplit(txt, "`n", "`r") {
+        p := StrSplit(line, ",")
+        if p.Length < 3 || SubStr(line, 1, 1) = ";" || !(p[2] = "kd" || p[2] = "ku" || p[2] = "mm" || p[2] = "kp")
+            continue
+        if !IsNumber(Trim(p[1])) {                        ; one bad line is skipped, not the rest of the run
+            Log("  WARNING: log.txt line skipped (bad time): " line)
+            continue
+        }
+        ms := Round(Number(Trim(p[1])) * 1000)
+        if p[2] = "kp" {
+            hold := p.Length > 4 && IsNumber(Trim(p[5])) ? Max(0, Round(Number(Trim(p[5])))) : 0
+            r.Push([ms, "kd", p[3], ""], [ms + hold, "ku", p[3], ""])
+        } else
+            r.Push([ms, p[2], p[3], p.Length > 3 ? p[4] : ""])
+    }
+    i := 2                                                ; stable insertion sort by ms
+    while i <= r.Length {
+        x := r[i], j := i - 1
+        while j >= 1 && r[j][1] > x[1] {
+            r[j + 1] := r[j]
+            j--
+        }
+        r[j + 1] := x
+        i++
+    }
+    at := t, atMethod := method, route := r.Length ? r : DUNGEON_ROUTE
+    return route
+}
+
+; "TELEPORT" (big white word, middle of the screen) read every 2 s; seen for 10 s in a row -> restart Roblox
+DimStuck() {
+    static since := 0, at := 0
+    if A_TickCount - at < 2000
+        return false
+    at := A_TickCount
+    if !RegExMatch(OcrRegion([300, 150, 1320, 500]), "i)TELEPORT") {
+        since := 0
+        return false
+    }
+    if !since {
+        since := A_TickCount
+        Log("  Dimension: TELEPORT on screen - a mob was missed?")
+    }
+    if A_TickCount - since < 10000
+        return false
+    since := 0
+    Screenshot("dim_teleport")
+    RestartRoblox("Dimension: TELEPORT on screen for 10 s (a mob was missed)", , 60000)
+    return true
+}
+; Dimension results (S rank, RETRY / LEAVE): both words in the button row, read with OCR every 0.3 s. Nothing is
+; counted - RETRY at once, so the same run starts again (LEAVE at raid time). The leave.png picture does not match
+; here (the buttons are translucent over another scene), and Infinity's light-panel points fall on the reward cards.
+; Click points from the results screen 3.11 (1920x1080): RETRY 757,795, LEAVE 1350,795.
+DimRetry() {
+    global routeDone, lastFight, lastReset, dimRetryAt, dimRunAt, dimHandled, retryPending
+    static at := 0, pressAt := 0
+    if A_TickCount - at < 300
+        return false
+    at := A_TickCount
+    txt := OcrRegion([450, 730, 1150, 120])
+    if !RegExMatch(txt, "i)retry") || !RegExMatch(txt, "i)leave") {
+        if retryPending                                   ; the results are gone: RETRY worked, arm the route for the new run
+            retryPending := false, routeDone := false
+        return false
+    }
+    lastFight := A_TickCount - FIGHT_STICKY                ; not a fight any more
+    lastReset := A_TickCount + 30000 - RESET_EVERY
+    if A_TickCount - pressAt < 2500                       ; just pressed - give the game a moment
+        return true
+    pressAt := A_TickCount, dimRunAt := 0                ; results reached: the 2 min watch is over
+    ReleaseKeys()
+    first := !dimHandled                                  ; one results screen: count and read it once, even if RETRY is pressed again
+    dimHandled := true
+    if first
+        DimCardsStart()
+    if Target() = "dungeon" {
+        SetStatus("Dimension results: pressing RETRY")
+        ; routeDone stays true until the results are gone (below): a click the game ignored ("0 Players want to retry") is pressed again
+        retryPending := true, dimRetryAt := A_TickCount
+        if first
+            Stat("dimRuns")
+        else
+            Log("  RETRY still on screen - pressing again")
+        ClickXY(757, 795)
+    } else {
+        SetStatus("Dimension results: raid time, pressing LEAVE")
+        ClickXY(1350, 795)
+    }
+    ParkMouse()
+    return true
+}
+
+; The first enemies (the giants) ahead at the spawn: giant-coloured pixels in DIM_MOBS, every 4th px. Two looks:
+; lit orange (3.11 recording: 915 of 3010) and dark red-brown in the shade at the start (3.11 screenshot: 868).
+; Frames later in the run give up to ~290, the lobby is held off by the PLAY / menu checks in RunRoute.
+MobsVisible() => MobsCount() >= 500
+
+MobsCount() {
+    b := DIM_MOBS, px := GrabPixels(b[1], b[2], b[3], b[4]), n := 0
+    y := 0
+    while y < b[4] {
+        x := 0
+        while x < b[3] {
+            c := NumGet(px, (y * b[3] + x) * 4, "uint")
+            r := c >> 16 & 0xFF, g := c >> 8 & 0xFF, bl := c & 0xFF
+            if r > 135 && r < 240 && g > 60 && g < 150 && bl < 70 && r - g > 50        ; lit
+                n++
+            else if r >= 20 && r <= 90 && g * 2 <= r && bl * 3 <= r                  ; in the shade
+                n++
+            x += 4
+        }
+        y += 4
+    }
+    return n
 }
 
 ; Гортає список рейдів колесом. Roblox ловить колесо лише над списком після руху миші,
@@ -2420,6 +2846,17 @@ DragBar(y1, y2) {
 ; посилання на приватний сервер: raid.ini [raid] serverLink (порожнє значення - без сервера), інакше сервер автора
 PrivateLink() => Trim(IniRead(INI, "raid", "serverLink", SERVER_LINK))
 
+; share link -> the same server via roblox:// straight in the Roblox client, no browser (05.11: user has no logged-in browser)
+; shortcut: only roblox.com/share?code= links are converted, other link types still open the browser
+ProtoLink(link) {
+    if RegExMatch(link, "i)roblox\.com/share\?code=(\w+)", &m)
+        return "roblox://navigation/share_links?code=" m[1] "&type=Server"
+    ; 06.11: an old games/<id>?privateServerLinkCode= link could not be opened (no default browser) - Roblox client straight away
+    if RegExMatch(link, "i)roblox\.com/games/(\d+).*[?&]privateServerLinkCode=(\w+)", &m)
+        return "roblox://experiences/start?placeId=" m[1] "&linkCode=" m[2]
+    return link
+}
+
 ; ID гри для перезапуску: raid.ini [raid] placeId (можна вписати і посилання на гру), інакше Anime Dimensions Simulator
 PlaceId() {
     id := IniRead(INI, "raid", "placeId", "6938803436")
@@ -2429,10 +2866,12 @@ PlaceId() {
 ; Закрити Roblox і зайти в гру знову (протокол roblox://). Повертає true, якщо вікно гри з'явилось.
 ; mode: "auto" - спершу браузер, потім roblox://; "browser" / "proto" - лише цей спосіб (тест, без паузи 10 min)
 RestartRoblox(why, mode := "auto", gap := RESTART_GAP) {
-    global lastRestart, fightSince, portraitSig, walkAt, noGameSince, lastFight
+    global lastRestart, fightSince, portraitSig, walkAt, noGameSince, lastFight, dimRunAt, dimRetryAt, routeDone, retryPending
     if mode = "auto" && A_TickCount - lastRestart < gap && lastRestart
         return false
     lastRestart := A_TickCount
+    ; 05.11 18:58: the run watch (no RETRY 2 min) outlived the restart and restarted Roblox again while the raid loadout was being chosen
+    dimRunAt := 0, dimRetryAt := 0, routeDone := false, retryPending := false
     SetStatus("restarting Roblox: " why)
     Stat("restarts")
     Screenshot("restart")
@@ -2482,12 +2921,13 @@ RestartRoblox(why, mode := "auto", gap := RESTART_GAP) {
         }
         link := PrivateLink()
         Log("  launching " (link != "" ? "private server link" : "via roblox://, game " id))
-        try Run link != "" ? link : "roblox://experiences/start?placeId=" id
+        launched := true
+        try Run link != "" ? ProtoLink(link) : "roblox://experiences/start?placeId=" id
         catch as e {
             Log("  could not launch Roblox: " e.Message)
-            return false
+            launched := false                             ; 06.11: was "return false" - 5 h of the same failure; now plain roblox:// below
         }
-        ok := WaitGame(link != "" ? 60000 : 120000, mode)
+        ok := launched && WaitGame(link != "" ? 60000 : 120000, mode)
         if stopped() {
             Log("restart interrupted: bot stopped")
             return false
@@ -2661,9 +3101,9 @@ NoSkill5() {
 ; майже весь екран чорний (сітка 5x5 точок темніша за 12)
 BlackScreen() {
     Loop 5 {
-        x := A_ScreenWidth * A_Index // 6
+        x := GAME_W * A_Index // 6
         Loop 5 {
-            c := Integer(PixelGetColor(x, A_ScreenHeight * A_Index // 6))
+            c := Integer(PixelGetColor(x, 23 + GAME_H * A_Index // 6))
             if (c >> 16 & 0xFF) > 12 || (c >> 8 & 0xFF) > 12 || (c & 0xFF) > 12
                 return false
         }
@@ -2673,7 +3113,7 @@ BlackScreen() {
 
 ; відводимо курсор у порожнє місце, щоб кнопки меню не підсвічувались від наведення
 ParkMouse() {
-    MouseMove 300, A_ScreenHeight // 2, 0
+    MouseMove 300, 23 + GAME_H // 2, 0
 }
 
 PngSize(file) {
@@ -2807,7 +3247,7 @@ Fight() {
         return
     if cfg["m1"] = "1" {
         SetStatus("M1", "M1")
-        MouseMove A_ScreenWidth // 2, A_ScreenHeight // 2, 0   ; щоб не клікнути по вікну бота
+        MouseMove GAME_W // 2, 23 + GAME_H // 2, 0             ; щоб не клікнути по вікну бота (centre of the game, not of a bigger screen)
         Click
     } else
         SetStatus("all skills on cooldown")

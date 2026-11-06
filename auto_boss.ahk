@@ -14,7 +14,7 @@ AutoReset() {
 
 AutoBox() => [AUTO_BTN[1] - 60, AUTO_BTN[2] - 60, AUTO_BTN[1] + 60, AUTO_BTN[2] + 60]
 
-; OFF button visible near AUTO_BTN: letters match and the diamond around them is red
+; OFF button visible near AUTO_BTN: letters match and the diamond around them is red or near-black
 AutoOffVisible() {
     b := AutoBox()
     if !FindImg("auto_off.png", &x, &y, b[1], b[2], b[3], b[4])
@@ -23,7 +23,8 @@ AutoOffVisible() {
     for p in AUTO_OFF_PTS {
         c := Integer(PixelGetColor(x + p[1], y + p[2]))
         r := c >> 16 & 0xFF, gg := c >> 8 & 0xFF, bl := c & 0xFF
-        if r >= 100 && r - gg >= 40 && r - bl >= 40
+        ; 6.11: the OFF diamond can also be near-black (29,17,14); ON is a bright purple, so it never passes
+        if r >= 100 && r - gg >= 40 && r - bl >= 40 || Max(r, gg, bl) < 70
             red++
     }
     return red >= 2
@@ -78,7 +79,7 @@ AutoEnsure() {
     global autoTries, autoAt, autoWinAt, autoFailLogged, autoOnLogged
     if A_TickCount - autoAt < 1500                         ; give the click time to show
         return
-    kind := lastEntered = "speed" ? "Speed Raid" : "raid"
+    kind := lastEntered = "speed" ? "Speed Raid" : lastEntered = "infinity" ? "Infinity" : "raid"
     if AutoOffVisible() {
         if autoTries && A_TickCount - autoWinAt > 30000
             autoTries := 0                                  ; max 3 tries per 30 s

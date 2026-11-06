@@ -5,7 +5,7 @@
 ; If a font is not installed, put its .ttf files into the fonts\ folder next to the script, else Segoe UI / Consolas is used.
 
 LOGO_T := 52, LOGO_S := LOGO_T / 100          ; logo tile size in px and its scale
-APP_VERSION := "0.2.7"                   ; shown under the title
+APP_VERSION := "0.3.1"                   ; shown under the title
 APP_AUTHOR  := "Samogub"                 ; shown next to the version
 
 ; ------------------------------ themes ------------------------------
@@ -80,10 +80,13 @@ uiLog := []                              ; last log lines shown in the bottom pa
 dRaid := "", dSpeed := "", dGoal := "", dDone := ""
 layoutMons := 0
 curPage := IniRead(INI, "ui", "page", "home")
-if !InStr(" home modes m_raid m_speed m_inf stats look ", " " curPage " ")
+if !InStr(" home modes m_raid m_speed m_inf m_dim skills stats look ", " " curPage " ")
     curPage := "home"
+skin := IniRead(INI, "ui", "skin", "compact") = "compact" && setupDone ? "compact" : "full"   ; the Setup card exists only in the full skin
+cOpen := " " IniRead(INI, "ui", "cOpen", "") " "         ; open groups of the compact skin, space separated
+#Include ui_compact.ahk
 
-g := Gui("+AlwaysOnTop -Caption", "AD Bot")
+g := Gui("+AlwaysOnTop -Caption -DPIScale", "AD Bot")          ; sizes already include UI_K (DPI)
 g.BackColor := C.bg
 g.MarginX := 0, g.MarginY := 0
 uiBmp := 0                                                     ; last finished frame (HBITMAP), blitted straight onto the window
@@ -91,13 +94,13 @@ uiBack := 0                                                    ; cached aurora b
 uiBackKey := ""
 OnMessage(0x201, UiClick)                                      ; WM_LBUTTONDOWN
 OnMessage(0x200, UiMove)                                       ; WM_MOUSEMOVE
-OnMessage(0x14, (wParam, lParam, msg, hwnd) => hwnd = g.Hwnd ? 1 : "")   ; WM_ERASEBKGND: never erase (no flicker)
+OnMessage(0x14, (wParam, lParam, msg, hwnd) => (hwnd = g.Hwnd || (hb && hwnd = hb.Hwnd) || (sumG && hwnd = sumG.Hwnd)) ? 1 : "")   ; WM_ERASEBKGND: never erase (no flicker)
 OnMessage(0xF, UiPaint)                                        ; WM_PAINT
 g.OnEvent("Close", (*) => ExitApp())
 
 ; Hotbar for one monitor: while the bot runs the big window would cover the game (the bot looks for images on
 ; the screen), so only this thin strip is shown at the top centre. +E0x20 - clicks pass through to the game.
-mini := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x20")
+mini := Gui("+AlwaysOnTop -Caption +ToolWindow +E0x20 -DPIScale")
 mini.BackColor := C.bg
 mini.MarginX := 14, mini.MarginY := 5
 mini.SetFont("s10 c" C.text, "Segoe UI")
@@ -105,6 +108,8 @@ miniTxt := mini.Add("Text", "w520 h20 0x200", "")
 
 g.Show("Hide w" PW " h" PH)
 DllCall("SetWindowRgn", "ptr", g.Hwnd, "ptr", DllCall("CreateRoundRectRgn", "int", 0, "int", 0, "int", PW + 1, "int", PH + 1, "int", Round(28 * UI_K), "int", Round(28 * UI_K), "ptr"), "int", 1)
+if skin = "compact"
+    SkinSize()
 UiCompute()
 UiRender(true)
 Layout()
@@ -145,32 +150,47 @@ Layout() {
     layoutMons := MonitorGetCount()
     if running {
         g.Hide()
+        if skin = "compact" {
+            mini.Hide()
+            HotbarShow()
+            return
+        }
         mini.Show("x0 y24 AutoSize NoActivate")
         mini.GetPos(, , &mw, &mh)
-        mini.Move((A_ScreenWidth - mw) // 2, 24)
+        mini.Move((GAME_W - mw) // 2, 24)                   ; centre of the game, not of a bigger screen
         DllCall("SetWindowRgn", "ptr", mini.Hwnd, "ptr", DllCall("CreateRoundRectRgn", "int", 0, "int", 0, "int", mw + 1, "int", mh + 1, "int", 16, "int", 16, "ptr"), "int", 1)
         return
     }
     mini.Hide()
+    HotbarHide()
+    fade := skin = "compact" && !DllCall("IsWindowVisible", "ptr", g.Hwnd)   ; fade in only when the window appears
+    if fade
+        CompactFadePrep()
     prim := MonitorGetPrimary()
     Loop layoutMons {
         if A_Index = prim
             continue
         MonitorGetWorkArea(A_Index, &l, &t, &r, &b)
         g.Show("x" (l + (r - l - PW) // 2) " y" (t + (b - t - PH) // 2) " NoActivate")
+        if fade
+            CompactFadeStart()
         return
     }
     g.Show("x" ((A_ScreenWidth - PW) // 2) " y" ((A_ScreenHeight - PH) // 2) " NoActivate")
+    if fade
+        CompactFadeStart()
 }
 
 StarTick() {
-    if C.stars && DllCall("IsWindowVisible", "ptr", g.Hwnd)
+    if (C.stars && skin = "full" || skin = "compact") && DllCall("IsWindowVisible", "ptr", g.Hwnd)   ; compact: the moving neon on grey text
         UiRender()
 }
 
 UiTick() {
     static ticks := 0, lastSig := ""
+    global hbPulse
     ticks++
+    hbPulse := !hbPulse                                  ; blink of the hotbar dot
     if Mod(ticks, 4) = 0 && MonitorGetCount() != layoutMons    ; a monitor was plugged / unplugged
         Layout()
     if running
@@ -187,18 +207,19 @@ UiTick() {
 ; strings for the Dashboard tiles; returns a signature of everything that changes on screen
 UiCompute() {
     global dRaid, dSpeed, dGoal, dDone
-    left := 3600 - SecOfHour()
-    dRaid := cfg["raid"] = "1" ? Format("{:02}:{:02}", left // 60, Mod(left, 60)) : "—"
+    left := RaidLeft()
+    dRaid := cfg["raid"] = "1" ? ClockTxt(left) : "—"
     sLeft := speedDue ? DateDiff(speedDue, A_Now, "Seconds") : 0         ; <= 0: Speed Raid is available now
     dSpeed := cfg["speed"] != "1" ? "—" : sLeft <= 0 ? "ready"
         : sLeft >= 3600 ? Round(sLeft / 3600) " h" : Format("{:02}:{:02}", sLeft // 60, Mod(sLeft, 60))
     goal := cfg["fightOnly"] = "1" ? "fight" : Target()
-    dGoal := goal = "raid" ? "Raid" : goal = "speed" ? "Speed" : goal = "infinity" ? "Infinity" : goal = "fight" ? "Fight" : "—"
-    dDone := raidDoneKey = FormatTime(, "yyyyMMddHH") ? "done" : "not yet"
+    dGoal := goal = "raid" ? "Raid" : goal = "speed" ? "Speed" : goal = "infinity" ? "Infinity" : goal = "dungeon" ? "Dimension" : goal = "fight" ? "Fight" : "—"
+    dDone := raidDoneKey = FormatTime(, "yyyyMMddHH") ? "done" : cfg["raid"] = "1" && !RaidHourOk(Integer(A_Hour)) ? "skipped" : "not yet"
     return dRaid "|" dSpeed "|" dGoal "|" dDone "|" uiStatus "|" running "|" curPage "|" hoverId "|" uiLog.Length
         . "|" (WinExist(GAME) != 0) "|" curLoadout "|" (running && A_TickCount - lastFight < FIGHT_STICKY)
-        . "|" sess["raids"] "," sess["infRuns"] "," sess["raidGems"] "," sess["raidTokens"] "," runTokens
+        . "|" sess["raids"] "," sess["infRuns"] "," sess["raidGems"] "," sess["raidTokens"] "," runTokens "," sess["speedRuns"] "," sess["dimRuns"]
         . "|" (curPage = "stats" ? A_Sec // 5 : "") "|" setupDone setupOpen setupRan setupRes.Length
+        . (skin = "compact" ? "|" CInfLeft() : "")
 }
 
 ; ------------------------------ Setup check ------------------------------
@@ -229,13 +250,17 @@ SetupClose() {
         setupDone := true
         IniWrite "1", INI, "setup", "done"
         Log("setup check passed")
+        setupOpen := false
+        SetSkin("compact")                                  ; first run: after the Setup check the compact window is the default
+        return
     }
     setupOpen := false
 }
 
 ; ------------------------------ clicks ------------------------------
 HitAt(lParam) {
-    x := (lParam & 0xFFFF) / UI_K, y := ((lParam >> 16) & 0xFFFF) / UI_K
+    k := skin = "compact" ? CK() : UI_K
+    x := (lParam & 0xFFFF) / k, y := ((lParam >> 16) & 0xFFFF) / k
     i := hits.Length
     while i >= 1 {
         h := hits[i]
@@ -247,6 +272,10 @@ HitAt(lParam) {
 }
 
 UiClick(wParam, lParam, msg, hwnd) {
+    if sumG && hwnd = sumG.Hwnd {                        ; session summary: a click anywhere closes it
+        SummaryHide()
+        return 0
+    }
     if hwnd != g.Hwnd
         return
     h := HitAt(lParam)
@@ -288,6 +317,11 @@ FlipKey(key) {
     cfg[key] := cfg[key] = "1" ? "0" : "1"
     IniWrite cfg[key], INI, "raid", key
     Log("setting " key " = " cfg[key] " (applies at once)")
+    if key = "infStand" && cfg[key] = "1"                  ; standing still: no turning or walking
+        for k in ["turn", "patrol"] {
+            cfg[k] := "0"
+            IniWrite "0", INI, "raid", k
+        }
 }
 
 PickRaid(key) {
@@ -298,7 +332,56 @@ PickRaid(key) {
     Log("setting raid = " RAIDS[key][3] " (applies at once)")
 }
 
+PickDimMethod(m) {
+    if cfg["dimMethod"] = m
+        return
+    cfg["dimMethod"] := m
+    IniWrite m, INI, "raid", "dimMethod"
+    Log("setting dimMethod = " m " (applies at once)")
+}
+
+ToggleSkill(k) {
+    off := []
+    for s in StrSplit(Trim(cfg["skillsOff"]), " ")
+        if s != "" && s != k
+            off.Push(s)
+    if SkillOn(k)
+        off.Push(k)
+    list := ""
+    for s in off
+        list .= (list = "" ? "" : " ") s
+    cfg["skillsOff"] := list
+    IniWrite list, INI, "raid", "skillsOff"
+    Log("setting skill " k (SkillOn(k) ? " on" : " off") " (applies at once)")
+}
+
+PickCombo(k) {
+    if k = "off" {
+        cfg["combo"] := "0"
+    } else {
+        cfg["combo"] := "1"
+        cfg["comboKey"] := k
+        IniWrite k, INI, "raid", "comboKey"
+    }
+    IniWrite cfg["combo"], INI, "raid", "combo"
+    Log("setting combo trigger = " (k = "off" ? "none" : k) " (applies at once)")
+}
+
+PickHold(k) {
+    cfg["comboSpam"] := k
+    IniWrite k, INI, "raid", "comboSpam"
+    Log("setting combo hold key = " k " (applies at once)")
+}
+
+StepHold(d) {
+    ms := Min(10000, Max(500, Num("comboMs", 3000) + d))
+    cfg["comboMs"] := String(ms)
+    IniWrite ms, INI, "raid", "comboMs"
+}
+
 OpenPath(p) {
+    if !FileExist(p) && SubStr(p, -1) = "\"                ; a folder that is not made yet (clean install): make it
+        try DirCreate(p)
     if FileExist(p)
         Run(p)
 }
@@ -307,14 +390,18 @@ OpenPath(p) {
 RestartBot() {
     Log("RESTART (F3)")
     if running
-        Stop()
+        Stop(false)
     Run('"' A_AhkPath '" "' A_ScriptFullPath '"')
 }
 
 ; button "Private server": open the author's private server link (Roblox asks to open the game)
 JoinPrivateServer() {
+    if PrivateLink() = "" {
+        Log("no private server link: put yours in raid.ini [raid] serverLink=")
+        return
+    }
     Log("opening the private server link")
-    try Run(PrivateLink())
+    try Run(ProtoLink(PrivateLink()))
 }
 
 ToggleRun() {
@@ -591,6 +678,11 @@ UiRender(force := false) {
         return
     Critical "On"                         ; mouse messages must not interrupt a half-drawn frame (hits would be incomplete -> hover flicker)
     UiCompute()
+    if skin = "compact" {
+        CompactRender()
+        Critical "Off"
+        return
+    }
     cv := Canvas(PW, PH, C.bg)
     gr := cv[2]
     DllCall("gdiplus\GdipScaleWorldTransform", "ptr", gr, "float", UI_K, "float", UI_K, "int", 0)
@@ -605,6 +697,8 @@ UiRender(force := false) {
         case "m_raid":  PageRaid()
         case "m_speed": PageSpeed()
         case "m_inf":   PageInfinity()
+        case "m_dim":   PageDimension()
+        case "skills": PageSkills()
         case "stats":  PageStats()
         case "look":   PageLook()
         default:       PageHome()
@@ -636,6 +730,20 @@ UiBlit(hdc := 0) {
 }
 
 UiPaint(wParam, lParam, msg, hwnd) {
+    if sumG && hwnd = sumG.Hwnd {                        ; session summary: repaint from its bitmap
+        ps := Buffer(72, 0)
+        hdc := DllCall("BeginPaint", "ptr", hwnd, "ptr", ps, "ptr")
+        SumBlit(hdc)
+        DllCall("EndPaint", "ptr", hwnd, "ptr", ps)
+        return 0
+    }
+    if hb && hwnd = hb.Hwnd {                            ; compact hotbar: repaint from its cached bitmap
+        ps := Buffer(72, 0)
+        hdc := DllCall("BeginPaint", "ptr", hwnd, "ptr", ps, "ptr")
+        HotbarBlit(hdc)
+        DllCall("EndPaint", "ptr", hwnd, "ptr", ps)
+        return 0
+    }
     if hwnd != g.Hwnd
         return
     ps := Buffer(72, 0)
@@ -713,7 +821,7 @@ DrawTopbar() {
     GradRR(24, 13, 36, 36, 12, C.acc, 255, C.acc2, 255)
     DrawLogo(16, 4)
     Tx("AD Bot", "title", 18, 1, C.text, 78, 8, 100, 26)
-    Tx("v" APP_VERSION " · public build · by " APP_AUTHOR, "mono", 10, 0, C.dim, 78, 31, 230, 16)
+    Tx("v" APP_VERSION " · public version · by " APP_AUTHOR, "mono", 10, 0, C.dim, 78, 31, 230, 16)
     ; status pill
     if running {
         FillRR(306, 16, 124, 30, 15, C.hi, 36)
@@ -825,6 +933,9 @@ DrawSetup() {
         TxP(t, "ui", 12, C.text, x + 510, ty, 280, 64)
         ty += 70
     }
+    ; set right here: the camera turn after respawn depends on it (the same setting as in Modes > Raid)
+    Stepper(x + 490, ty - 6, 300, "Mouse sensitivity", "camSens", 1, 1, 200, 100, "", 36)
+    TxP("Set the same as in Roblox: Esc > Settings > Camera Sensitivity. Do not use the PC while the bot runs.", "ui", 11, C.dim, x + 490, ty + 32, 300, 32)
     ; bottom bar
     by := y + h - 68
     Btn(x + 28, by, 200, 44, setupRan ? "Check again" : "Check now", "setup_check", SetupRun, !setupRan, Chr(0xE9D9))
@@ -971,6 +1082,12 @@ ModeCard(x, y, w, h, title, desc, key, page, btnText := "Settings", soon := fals
     hot := IsHot("mc_" title)
     Glass(x, y, w, h, 18, hot)
     Tx(title, "title", 16, 1, C.text, x + 20, y + 9, w - 110, 26)
+    if title = "Dimension" {
+        nx := x + 20 + TxW(title, "title", 16, 1) + 26, nw := TxW("NEW", "ui", 11, 1)
+        Loop 6   ; violet aura left and right of the label
+            FillRR(nx - 3 * A_Index - 2, y + 12 - A_Index, nw + 6 * A_Index + 4, 18 + 2 * A_Index, 9 + A_Index, "A78BFA", 16)
+        Tx("NEW", "ui", 11, 1, "FFFFFF", nx, y + 13, nw + 4, 18)
+    }
     TxP(desc, "ui", 11, C.dim, x + 20, y + 35, w - 40, 30)
     if page != ""
         Hit(x, y, w, h, "mc_" title, SetPage.Bind(page))
@@ -987,14 +1104,16 @@ ModeCard(x, y, w, h, title, desc, key, page, btnText := "Settings", soon := fals
 }
 
 PageModes() {
-    cw2 := (CWD - 12) // 2, ch := (CHT - 12) // 2
-    cards := [["Raid", "Enters the raid at the start of every hour. The game's Auto button fights; choose the raid and the start options.", "raid", "m_raid"],
+    cw2 := (CWD - 12) // 2, ch := (CHT - 24) // 3
+    cards := [["Raid", "Enters the raid at the start of every hour. Choose the raid and how the fight is played.", "raid", "m_raid"],
               ["Speed Raid", "Every 30 min with the lowest unused character. Needs loadout 3 if loadouts are on.", "speed", "m_speed"],
-              ["Infinity", "Farms waves while the raid is closed. The character stands still and uses the big AOE skills.", "infinity", "m_inf"],
-              ["Loadouts", "Switches the Bag loadout: raid 1, Infinity 2, Speed Raid 3. Set your loadouts first.", "loadouts", ""]]
+              cfg["dungeon"] = "1" ? ["Infinity", "Off while Dimension is on: Dimension takes its place and loadout 2.", "", "m_inf", "Settings", "Off: Dimension on"]
+                 : ["Infinity", "Farms waves while the raid is closed. Choose how the character fights.", "infinity", "m_inf"],
+              ["Loadouts", "Switches the Bag loadout: raid 1, Infinity or Dimension 2, Speed Raid 3. Set your loadouts first.", "loadouts", ""],
+              ["Dimension", "Giant Dimension (Nightmare, Hardcore, Friends Only) with the author's recorded run, instead of Infinity. Loadout 2.", "dungeon", "m_dim"]]
     for i, mc in cards {   ; not "c": it would shadow the global theme object C
         col := Mod(i - 1, 2), row := (i - 1) // 2
-        ModeCard(CX + col * (cw2 + 12), CY + row * (ch + 12), cw2, ch, mc[1], mc[2], mc[3], mc[4], "Settings", false)
+        ModeCard(CX + col * (cw2 + 12), CY + row * (ch + 12), cw2, ch, mc[1], mc[2], mc[3], mc[4], mc[4] = "skills" ? "Open" : "Settings", mc.Length > 5 ? mc[6] : false)
     }
 }
 
@@ -1011,45 +1130,144 @@ PageRaid() {
     }
     TxP("Coming soon: " soon, "ui", 11, C.idle, CX + 20 + cw3 + 16, py + 38, CWD - 40 - cw3 - 16, 36)
     py2 := py + 92
-    Panel(CX, py2, CWD, 150, "Raid settings")
+    Panel(CX, py2, CWD, CHT - 46 - 92, "How the fight is played")
     colw := (CWD - 40 - 24) // 2
-    solo := cfg["soloRaid"] = "1"
     ToggleRow(CX + 20, py2 + 38, colw, "Solo mode (Friends Only)", "Nobody can join, so Start is pressed at once", "soloRaid")
-    TxP("The game's Auto button does the fighting in the raid: the bot only keeps it on and waits for the end.", "ui", 11, C.dim, CX + 20, py2 + 92, colw, 40)
+    ToggleRow(CX + 20, py2 + 86, colw, "Reset characters without skill 5", SkillOn("5") ? "Reset until a character with skill 5 comes" : "Locked: skill 5 is turned off", "resetNo5", !SkillOn("5"))
+    ToggleRow(CX + 20, py2 + 134, colw, "Reset the 3rd character", "Even if it has skill 5", "resetThird")
+    Stepper(CX + 20, py2 + 188, colw, "Mouse sensitivity", "camSens", 1, 1, 200, 100, "", 36, "As in the Roblox settings")
     rx := CX + 20 + colw + 24
-    Stepper(rx, py2 + 38, colw, "PARTY wait before Start", "startDelay", 1, 0, 30, 1, "s", 10, "Needs Friends Only off", solo)
-    Stepper(rx, py2 + 84, colw, "Early start at bonus", "startBonus", 10, 0, 300, 1, "%", 110, "Needs Friends Only off", solo)
+    solo := cfg["soloRaid"] = "1"
+    Stepper(rx, py2 + 38, colw, "Walk to the boss", "raidWalk", 500, 0, 8000, 1000, "s", 3000)
+    Stepper(rx, py2 + 84, colw, "PARTY wait before Start", "startDelay", 1, 0, 30, 1, "s", 10, "Needs Friends Only off", solo)
+    Stepper(rx, py2 + 130, colw, "Early start at bonus", "startBonus", 10, 0, 300, 1, "%", 110, "Needs Friends Only off", solo)
+    Stepper(rx, py2 + 176, colw, "Camera turn", "respawnTurn", 5, 35, 155, 1, "°", 95, "If the boss is not ahead")
 }
 PageSpeed() {
     BackBar("Speed Raid", "A short raid with one character, available every 30 minutes")
     Panel(CX, CY + 46, CWD, 244, "How it works")
-    TxP("Every 30 minutes the bot opens the modes menu, picks Speed Raid and the lowest character that has not been used this week (used characters are dimmed).`n`nThe game's Auto button does the fighting: the bot only keeps it on until the run ends.`n`nSpeed Raid has priority over Infinity but not over the hourly raid. It is not started in the last 8 minutes of the hour.`n`nSpeed Raid resets once a week and used characters become free again. The author recommends running it on weekends, when the rewards are x2. When all characters are used, the bot waits for the weekly reset and then continues.", "ui", 13, C.text, CX + 20, CY + 90, CWD - 40, 196)
+    TxP("Every 30 minutes the bot opens the modes menu, picks Speed Raid and the lowest character that has not been used this week (used characters are dimmed).`n`nThere is no combo: the bot opens with E R X Z and then presses 5 4 3 2 1 as they come off cooldown.`n`nSpeed Raid has priority over Infinity but not over the hourly raid. It is not started in the last 8 minutes of the hour.`n`nSpeed Raid resets once a week and used characters become free again. The author recommends running it on weekends, when the rewards are x2. When all characters are used, the bot waits for the weekly reset and then continues.", "ui", 13, C.text, CX + 20, CY + 90, CWD - 40, 196)
     Panel(CX, CY + 302, CWD, CHT - 302, "Settings")
     ToggleRow(CX + 20, CY + 344, (CWD - 40 - 24) // 2, "Speed Raid enabled", "Turn it off to skip Speed Raid completely", "speed")
-    ToggleRow(CX + 20 + (CWD - 40 - 24) // 2 + 24, CY + 344, (CWD - 40 - 24) // 2, "Switch loadout", "All modes: raid 1, Infinity 2, Speed Raid 3", "loadouts")
+    ToggleRow(CX + 20 + (CWD - 40 - 24) // 2 + 24, CY + 344, (CWD - 40 - 24) // 2, "Switch loadout", "Speed Raid uses loadout 3 when this is on", "loadouts")
 }
 
 PageInfinity() {
     BackBar("Infinity", "Focus on big, long AOE skills - not the game's Auto Play")
     py := CY + 46
-    Panel(CX, py, CWD, 200, "How the character fights")
+    Panel(CX, py, CWD, 232, "How the character fights")
     Tx("Infinity keeps its focus for late-end game", "ui", 11, 0, C.dim, CX + 20 + TxW("How the character fights", "title", 15, 1) + 14, py + 14, 320, 24)
     colw := (CWD - 40 - 24) // 2
-    TxP("The character stands still: enemies walk into the big AOE skills, all other skills are pressed as soon as they are ready.", "ui", 12, C.dim, CX + 20, py + 44, colw, 80)
+    ga := cfg["infGameAuto"] = "1"                       ; the game's Auto fights: everything about skills and moving is locked
+    still := cfg["infStand"] = "1" || ga
+    lockTxt := ga ? "Locked while Game Auto is on" : "Locked while Stand still is on"
+    ToggleRow(CX + 20, py + 38, colw, "Stand still", ga ? lockTxt : "No walking or turning, only skills", "infStand", ga)
+    ToggleRow(CX + 20, py + 84, colw, "Turn towards enemies", still ? lockTxt : "Turns the camera to the nearest enemy", "turn", still)
+    ToggleRow(CX + 20, py + 130, colw, "Walk forward now and then", still ? lockTxt : "Short walks to find new enemies", "patrol", still)
+    ToggleRow(CX + 20, py + 176, colw, "Game Auto", "The game's Auto fights, the bot keeps it on", "infGameAuto")
     rx := CX + 20 + colw + 24
     TimeStepper(rx, py + 40, colw, "Leave Infinity at", "infStop", 30, 600, 3480, 57 * 60 + 30, "Author recommends 57:30")
-    Stepper(rx, py + 92, colw, "Pause between AOE", "spreadMs", 500, 1000, 20000, 1000, "s", 7000, "Author recommends 7 s", false)
-    Stepper(rx, py + 144, colw, "Auto if enemies stuck", "infAuto", 5000, 0, 60000, 1000, "s", 15000, "AUTO for 5 s; 0 = off")
-    py2 := py + 210
-    Panel(CX, py2, CWD, CHT - 46 - 210, "Big AOE skills")
+    Stepper(rx, py + 92, colw, "Pause between AOE", "spreadMs", 500, 1000, 20000, 1000, "s", 7000, "Author recommends 7 s", ga)
+    Stepper(rx, py + 144, colw, "Turn every", "turnMs", 500, 500, 10000, 1000, "s", 2500, "", still)
+    Stepper(rx, py + 190, colw, "Auto if enemies stuck", "infAuto", 5000, 0, 60000, 1000, "s", 15000, "AUTO for 5 s; 0 = off", ga)
+    py2 := py + 242
+    Panel(CX, py2, CWD, CHT - 46 - 242, "Big AOE skills")
     nk := SKILL_KEYS.Length
     cw := (CWD - 40 - (nk - 1) * 8) // nk
     for i, k in SKILL_KEYS
-        if SkillOn(k)
+        if SkillOn(k) && !ga
             Chip(CX + 20 + (i - 1) * (cw + 8), py2 + 36, cw, 30, StrUpper(k), InStr(" " cfg["spread"] " ", " " k " "), "sp_" k, ToggleList.Bind("spread", k))
         else
             ChipOff(CX + 20 + (i - 1) * (cw + 8), py2 + 36, cw, 30, StrUpper(k))
     TxP("Blue skills are the big area attacks. The bot presses them one at a time with a pause, so their effects do not overlap. All other skills are pressed as soon as they are ready.", "ui", 12, C.dim, CX + 20, py2 + 72, CWD - 40, 40)
+}
+
+PageDimension() {
+    BackBar("Dimension", "Giant Dimension: Nightmare, Hardcore, Friends Only")
+    py := CY + 46, lw := (CWD - 12) // 2, rx := CX + lw + 12, colw := lw - 40
+    Panel(CX, py, lw, CHT - 46, "Recorded run")
+    ToggleRow(CX + 20, py + 36, colw, "Dimension on", "Plays the recorded run instead of Infinity", "dungeon")
+    cwm := (colw - 8) // 2
+    Chip(CX + 20, py + 78, cwm, 26, "Method 1", cfg["dimMethod"] != "2", "dm_1", PickDimMethod.Bind("1"))
+    Chip(CX + 20 + cwm + 8, py + 78, cwm, 26, "Method 2", cfg["dimMethod"] = "2", "dm_2", PickDimMethod.Bind("2"))
+    Stepper(CX + 20, py + 110, colw, "Start delay", "dimShift", 100, 0, 5000, 1000, "s", 0, "Wait this long before the run")
+    ToggleRow(CX + 20, py + 156, colw, "Keep fighting after the run", "Finishes enemies that are left", "dimFight")
+    rt := DimRoute(), last := rt.Length ? rt[rt.Length][1] : 0
+    TxP("Starts when enemies show up. Run: " rt.Length " steps, " Round(last / 1000, 1) " s. Same character and loadout as recorded.", "ui", 11, C.dim, CX + 20, py + 206, colw, 36)
+    bw := (colw - 12) // 2
+    Btn(CX + 20, py + 248, bw, 36, "Edit the run", "dim_edit", DimEdit, false, Chr(0xE70F))
+    Btn(CX + 20 + bw + 12, py + 248, bw, 36, "Open folder", "dim_dir", OpenPath.Bind(DIM_DIR), false, Chr(0xE8B7))
+    TxP("Enemies late? Edit the run, pick a row, Wait +100 ms, Save.", "ui", 11, C.dim, CX + 20, py + 292, colw, 36)
+    Panel(rx, py, lw, CHT - 46, "Character for this run")
+    ic := IMGDIR DIM_CHAR.icon
+    if FileExist(ic)
+        DrawPng(ic, rx + 20, py + 40, 96, 96)
+    else {
+        FillRR(rx + 20, py + 40, 96, 96, 14, C.field)
+        Tx("?", "title", 30, 1, C.dim, rx + 20, py + 40, 96, 96, 1)
+    }
+    Tx(DIM_CHAR.name != "" ? DIM_CHAR.name : "Not filled in yet", "title", 16, 1, C.text, rx + 132, py + 44, lw - 152, 26)
+    TxP(DIM_CHAR.text != "" ? DIM_CHAR.text : "Which character, skills and loadout the run was recorded with.", "ui", 11, C.dim, rx + 132, py + 74, lw - 152, 64)
+    TxP(DIM_CHAR.more, "ui", 12, C.text, rx + 20, py + 152, lw - 40, 70)
+    ; the fruit: needed Fruit Cooldown Reduction
+    fy := py + 236
+    fi := IMGDIR DIM_CHAR.fruitIcon
+    if FileExist(fi)
+        DrawPng(fi, rx + 20, fy, 72, 72)
+    Tx(DIM_CHAR.fruitName, "title", 14, 1, C.text, rx + 108, fy + 2, lw - 128, 22)
+    TxP(DIM_CHAR.fruitText, "ui", 11, C.dim, rx + 108, fy + 26, lw - 128, 52)
+}
+
+; PNG from a file, scaled into (x, y, w, h); loaded once
+DrawPng(file, x, y, w, h) {
+    static cache := Map()
+    if !cache.Has(file) {
+        DllCall("gdiplus\GdipCreateBitmapFromFile", "wstr", file, "ptr*", &bmp := 0)
+        cache[file] := bmp
+    }
+    if cache[file]
+        DllCall("gdiplus\GdipDrawImageRectI", "ptr", gr, "ptr", cache[file], "int", x, "int", y, "int", w, "int", h)
+}
+
+DimEdit(*) {
+    DirCreate DIM_DIR
+    try Run '"' A_AhkPath '" "' A_ScriptDir '\tools\Recorder.ahk" "' RTrim(DIM_DIR, "\") '"'   ; no trailing \ before the quote (\" would escape it)
+    catch as e
+        Log("Recorder did not start: " e.Message)
+}
+
+PageSkills() {
+    nk := SKILL_KEYS.Length
+    cw := (CWD - 40 - (nk - 1) * 8) // nk
+    Panel(CX, CY, CWD, 144, "Skills the bot presses")
+    for i, k in SKILL_KEYS
+        Chip(CX + 20 + (i - 1) * (cw + 8), CY + 48, cw, 44, StrUpper(k), SkillOn(k), "sk_" k, ToggleSkill.Bind(k))
+    TxP("Blue = pressed. A skill your character does not have is detected automatically (it never goes on cooldown, so after 3 tries the bot skips it for 20 s). Turn a skill off here if no character should use it. In raids, characters without skill 5 are reset - see Modes > Raid.", "ui", 11, C.dim, CX + 20, CY + 96, CWD - 40, 40)
+    py := CY + 156
+    Panel(CX, py, CWD, CHT - 156, "Combo")
+    cw2 := (CWD - 40 - nk * 8) // (nk + 1)
+    Caption("1. After this skill is pressed...", CX + 20, py + 46, 400)
+    for i, k in SKILL_KEYS
+        Chip(CX + 20 + (i - 1) * (cw2 + 8), py + 66, cw2, 40, StrUpper(k), cfg["combo"] = "1" && cfg["comboKey"] = k, "cb_" k, PickCombo.Bind(k))
+    Chip(CX + 20 + nk * (cw2 + 8), py + 66, cw2, 40, "OFF", cfg["combo"] != "1", "cb_off", PickCombo.Bind("off"))
+    Caption("2. ...hold this key", CX + 20, py + 120, 300)
+    comboOn := cfg["combo"] = "1"
+    for i, k in ["1", "2", "3", "4"]
+        if comboOn
+            Chip(CX + 20 + (i - 1) * (cw2 + 8), py + 140, cw2, 40, k, cfg["comboSpam"] = k, "hd_" k, PickHold.Bind(k))
+        else
+            ChipOff(CX + 20 + (i - 1) * (cw2 + 8), py + 140, cw2, 40, k)
+    Caption("3. ...for", CX + 20 + 4 * (cw2 + 8) + 24, py + 120, 200)
+    sx := CX + 20 + 4 * (cw2 + 8) + 24
+    if comboOn {
+        Chip(sx, py + 140, 40, 40, "-", false, "ms_dn", StepHold.Bind(-500))
+        Chip(sx + 138, py + 140, 40, 40, "+", false, "ms_up", StepHold.Bind(500))
+    } else {
+        ChipOff(sx, py + 140, 40, 40, "-")
+        ChipOff(sx + 138, py + 140, 40, 40, "+")
+    }
+    Tx(Format("{:.1f} s", Num("comboMs", 3000) / 1000), "mono", 16, 1, comboOn ? C.text : C.idle, sx + 44, py + 140, 90, 40, 1)
+    Tx("Used only in raids that show a Combo counter. Skill order and timings: raid.ini", "ui", 11, 0, C.dim, CX + 20, py + CHT - 156 - 30, CWD - 40, 18)
 }
 
 PageStats() {
@@ -1114,15 +1332,17 @@ PageLook() {
         Hit(x, y, sw, 76, id, SetTheme.Bind(name))
     }
     my := CY + 150
-    Panel(CX, my, CWD, 80, "Sound")
+    Panel(CX, my, CWD, 96, "Sound and window")
     colw := (CWD - 40 - 24) // 2
     rx := CX + 20 + colw + 24
-    ToggleRow(CX + 20, my + 34, colw, "Button sounds", "A short click when you press a button", "sfx")
-    py := CY + 240
-    Panel(CX, py, CWD, CHT - 240, "Files")
+    ToggleRow(CX + 20, my + 32, colw, "Button sounds", "A short click when you press a button", "sfx")
+    SkinRow(rx, my + 32, colw)
+    py := CY + 258
+    Panel(CX, py, CWD, CHT - 258, "Files")
     bw := (CWD - 40 - 2 * 12) // 3
     Btn(CX + 20, py + 38, bw, 38, "Log file", "f_log", OpenPath.Bind(LOGFILE), false, Chr(0xE7C3))
     Btn(CX + 20 + bw + 12, py + 38, bw, 38, "Settings (raid.ini)", "f_ini", OpenPath.Bind(INI), false, Chr(0xE713))
     Btn(CX + 20 + 2 * (bw + 12), py + 38, bw, 38, "Screenshots", "f_shots", OpenPath.Bind(SHOTDIR), false, Chr(0xE722))
     Tx("Custom colours: add  bg= card= acc= acc2= hi=  (6-digit hex) under [theme] in raid.ini. Clicking a preset clears them.", "ui", 11, 0, C.dim, CX + 20, py + 84, CWD - 40, 18)
 }
+

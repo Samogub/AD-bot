@@ -1,11 +1,18 @@
-﻿; rewards.ahk - REWARDS panel (Speed Raid, new Raid screen): the gem card and the raid-token card are found by
+﻿; rewards.ahk - REWARDS panel (Speed Raid, Dimension, new Raid screen): the gem card and the raid-token card are found by
 ; their icons (img\card_gem.png / card_gem_2.png / card_token.png, the icon above the number), the white number at the
 ; card's bottom-left is read by OCR. Own OCR files (OCR3_*), so nothing clashes with the counter OCR or ReadLootNumber.
 
-OCR3_IN  := A_Temp "\adbot_ocr3.png"
-OCR3_OUT := A_Temp "\adbot_ocr3.txt"
+OCR3_IN  := A_Temp "\adbot031_ocr3.png"
+OCR3_OUT := A_Temp "\adbot031_ocr3.txt"
 CARD_BOX := [700, 330, 1700, 560]                ; where the cards can be (they move with the card order, up to 5 cards)
 tokFromScreen := false                            ; raid tokens of this run were read from the results: the in-fight counter must not be added
+dimHandled := false                              ; Dimension results screen already handled (cleared when the route starts)
+rwPendingAt := 0                                 ; Dimension: background OCR of the gem number started at this tick
+OCR5_IN  := A_Temp "\adbot031_ocr5.png"            ; results line (Time / Wave / PITY): own files, async, never shared with OCR3
+OCR5_OUT := A_Temp "\adbot031_ocr5.txt"
+RESULT_BOX := [840, 530, 540, 170]
+rlPendingAt := 0                                 ; results line OCR started at this tick (0 = none pending)
+rlKind := ""                                     ; "infinity" / "dimension"
 
 CardFind(name, &x, &y) => FindImg(name, &x, &y, CARD_BOX[1], CARD_BOX[2], CARD_BOX[3], CARD_BOX[4])
 
@@ -67,4 +74,92 @@ RewardCards(kind) {
     Log(title ": gems " (gems ? gems : "?") ", tokens " (tokens ? tokens : "?")
         . (gems && tokens ? "" : " (a card or number was not found - see the shot)"))
     return true
+}
+
+; Dimension results: the number area is saved first, the OCR runs in the background (RETRY must not wait for it)
+DimCardsStart() {
+    global rwPendingAt
+    found := false
+    Loop 10 {                                            ; the cards may still be drawn: up to 1 s
+        if found := CardFind("card_gem.png", &gx, &gy)
+            break
+        Sleep 100
+    }
+    if !found {
+        Log("  Dimension: gem card not found on the results")
+        ResultLineStart("dimension")                     ; time and pity are still worth reading
+        return
+    }
+    b := CardRegion(gx, gy)
+    try FileDelete OCR3_OUT
+    if SaveRegion(OCR3_IN, b[1], b[2], b[3], b[4]) = 0 {
+        OcrCall(OCR3_IN, OCR3_OUT, "-White", false)
+        rwPendingAt := A_TickCount
+    } else
+        Log("  Dimension: could not save the gem number area")
+    ResultLineStart("dimension")                         ; queued after the gem number (the OCR server takes requests one at a time, in order)
+}
+
+; Results line (Time / Wave / PITY): the area is saved now, OCR runs in the background (OCR server queue, own files OCR5_*),
+; ResultLinePoll() picks the answer on later ticks. Nothing here waits.
+ResultLineStart(kind) {
+    global rlPendingAt, rlKind
+    if rlPendingAt && A_TickCount - rlPendingAt < 20000
+        return                                           ; the previous read is still on its way
+    try FileDelete OCR5_OUT
+    if SaveRegion(OCR5_IN, RESULT_BOX[1], RESULT_BOX[2], RESULT_BOX[3], RESULT_BOX[4]) = 0 {
+        OcrCall(OCR5_IN, OCR5_OUT, "-Scale 2", false)
+        rlPendingAt := A_TickCount, rlKind := kind
+    } else
+        Log("  result line (" kind "): could not save the area")
+}
+
+ResultLinePoll() {
+    global rlPendingAt, rlKind
+    if !rlPendingAt
+        return
+    if FileExist(OCR5_OUT) {
+        txt := ""
+        try txt := FileRead(OCR5_OUT, "UTF-8")
+        try FileDelete OCR5_OUT
+        kind := rlKind, rlPendingAt := 0
+        tm := RegExMatch(txt, "i)Ti\s*me:?\s*(\d+)[:.](\d\d)", &mt) ? Format("{:02}:{}", mt[1], mt[2]) : ""
+        if kind = "infinity" {
+            if RegExMatch(txt, "i)Wave:?\s*(\d+)", &mw)
+                Log("Infinity results: time " (tm != "" ? tm : "?") ", wave " mw[1])
+        } else {
+            pity := RegExMatch(txt, "i)PITY\s*(\d+)\s*/\s*(\d+)", &mp) ? mp[1] "/" mp[2] : ""
+            if tm = "" && pity = ""
+                Log("  result line (Dimension): no time or pity read")
+            else {
+                Log("Dimension run: time " (tm != "" ? tm : "?") (pity != "" ? ", pity " pity : ""))
+                if pity != "" && Integer(mp[1]) >= 48
+                    Log("  accessory pity near: " pity)
+            }
+        }
+    } else if A_TickCount - rlPendingAt > 20000 {
+        Log("  result line OCR: no answer")
+        rlPendingAt := 0
+    }
+}
+
+RewardsPoll() {
+    global rwPendingAt
+    ResultLinePoll()                                     ; Time / Wave / PITY line, also in the background
+    if !rwPendingAt
+        return
+    if FileExist(OCR3_OUT) {
+        txt := ""
+        try txt := FileRead(OCR3_OUT, "UTF-8")
+        try FileDelete OCR3_OUT
+        rwPendingAt := 0
+        if (n := CardParse(txt)) {
+            Stat("dimGems", n)
+            Log("Dimension: gems " n)
+        } else
+            Log("  Dimension: gems could not be read")
+    } else if A_TickCount - rwPendingAt > 20000 {
+        Log("  Dimension: gem number OCR gave no answer in 20 s")
+        rwPendingAt := 0
+    }
 }

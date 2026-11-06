@@ -4,11 +4,21 @@
 
 > Roblox disconnects, freezes on a teleport, loops a retry screen or just closes? AD Bot was made first of all for players for whom this happens **all the time**. It notices the problem, restarts the game, joins again and carries on, so your night run does not end at the first crash.
 
-**Version 0.2.7 · stable** · Windows · by Samogub
+**Version 0.3.1** · Windows · by Samogub
 
-![Dashboard](docs/dashboard.png)
+## New in 0.3.1
 
-![Modes](docs/modes.png)
+- **New compact interface** - a small window with all the settings in fold-out groups. It opens by default after the first Setup check.
+- **The old interface stays**, improved - open it with **FULL UI** (System group) or **CHARACTER & STATS**.
+- **Giant Dimension** - plays a recorded run instead of Infinity. Method 1 plays `dimension\giant\log.txt`, Method 2 the built-in run.
+- **Recorder** (`Edit the run`) - change the run yourself: Wait +/-100 ms, add a key press / key down / key up, edit or delete rows.
+- **Music** in the compact window (optional): put your own `.m4a` files into a `music` folder.
+- Lobby is also found by the **BAG** text when the PLAY button cannot be read (for example under the "Activate Windows" watermark).
+- Old private server links (`privateServerLinkCode`) open straight in Roblox; if a link fails the bot tries the plain game start.
+
+![Compact interface](docs/compact.png)
+
+![Full interface](docs/modes.png)
 
 ## What it does when Roblox breaks
 
@@ -34,18 +44,19 @@
 - Screen **1920x1080**, Windows scale **100%**, taskbar at the bottom
 - Screen lock and screensaver turned off
 - English OCR language pack in Windows (Settings > Time & Language > Language)
+- Roblox language **English**
 - In Roblox (Optional): lowest graphics
-- Optional: loadout 1 = raid, 2 = Infinity, 3 = Speed Raid, then turn on **Switch loadout**
+- Optional: loadout 1 = raid, 2 = Infinity or Dimension, 3 = Speed Raid, then turn on **Switch loadout**
 
 ## How to start
 
 1. Download the repository (Code > Download ZIP) and unpack it!
 2. Open Roblox, join the game and wait in the lobby.
-3. Run `RaidBot.ahk`. On the first start press **Check now**, fix what it shows, then **Continue**.
+3. Run `RaidBot.ahk`. On the first start press **Check now**, fix what it shows, then **Continue** - the compact window opens.
 4. Pick the raid and modes.
 5. **F1** starts, **F2** stops, **F3** reloads the bot.
 
-After a restart the bot returns to the author's private server by default. To use your own, put `serverLink=<your link>` under `[raid]` in `raid.ini`.
+After a restart the bot starts the game on a public server. To come back to your private server, put `serverLink=<your link>` under `[raid]` in `raid.ini`.
 
 ## Good to know
 

@@ -10,6 +10,8 @@ mkdir _report
 if exist raid.log copy /y raid.log _report >nul
 if exist raid.ini copy /y raid.ini _report >nul
 if exist shots xcopy /e /i /q shots _report\shots >nul
+if exist logs xcopy /e /i /q logs _report\logs >nul
+if exist dimension\giant\log.txt copy /y dimension\giant\log.txt _report\dimension_log.txt >nul
 echo version %VER%> _report\version.txt
 powershell -NoProfile -Command "Compress-Archive -Path '_report\*' -DestinationPath '%ZIP%'"
 rmdir /s /q _report
