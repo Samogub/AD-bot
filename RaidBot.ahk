@@ -258,11 +258,11 @@ cfg := Map(
     "noComboReset", IniRead(INI, "raid", "noComboReset", "12000"),       ; Divine: no Combo this long -> reset, ms (0 = off)
     "farWalk",    IniRead(INI, "raid", "farWalk", "2500"),      ; Divine: після 1/2 немає Combo -> вперед стільки ms with Q x3 (0 = вимк.)
     "soloRaid",   IniRead(INI, "raid", "soloRaid", "1"),        ; рейд: вмикати Friends Only (соло, без інших гравців)
-    "loadouts",   IniRead(INI, "raid", "loadouts", "0"),     ; міняти loadout: рейд - 1, Infinity або dungeon - 2, Speed Raid - 3
+    "loadouts",   IniRead(INI, "raid", "loadouts", "1"),     ; міняти loadout: рейд - 1, Infinity або dungeon - 2, Speed Raid - 3
     "dimShift",   IniRead(INI, "raid", "dimShift", "0"),         ; Dimension: start delay, ms - wait this long after the enemies show up
     "dimFight",   IniRead(INI, "raid", "dimFight", "1"),         ; Dimension: normal fight after the run if enemies are left
     "dimMethod",  IniRead(INI, "raid", "dimMethod", "1"),        ; Dimension route: 1 = dimension\giant\log.txt, 2 = built-in route
-    "dungeon",    IniRead(INI, "raid", "dungeon", "0"),         ; Giant Dimension (Nightmare, Hardcore, Friends Only) instead of Infinity; experimental
+    "dungeon",    IniRead(INI, "raid", "dungeon", "1"),         ; Giant Dimension (Nightmare, Hardcore, Friends Only) instead of Infinity; experimental
     "speed",      IniRead(INI, "raid", "speed", "1"),          ; Speed Raid раз на 30 min (пріоритет: рейд > speed > Infinity)
     "seekAfter",  IniRead(INI, "raid", "seekAfter", "5000"),    ; скільки ms без влучань, щоб почати пошук
     "camSens",    IniRead(INI, "raid", "camSens", "36"),          ; чутливість миші в грі x100 (0.36 -> 36): від неї залежить, на скільки px вести мишу для повороту камери
