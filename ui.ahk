@@ -117,7 +117,7 @@ SetTimer(UiTick, 500)
 SetTimer(StarTick, 200)                                  ; star animation: about 5 frames a second, only for themes with stars
 
 ; ------------------------------ public hooks used by the bot ------------------------------
-UiInvalidate() => SetTimer(UiRender, -20)
+UiInvalidate() => IsSet(g) && SetTimer(UiRender, -20)   ; not before the window exists (a log line during start-up)
 PaintRun() => UiInvalidate()
 
 UiSetStatus(text) {
@@ -127,6 +127,9 @@ UiSetStatus(text) {
 }
 
 UiLogPush(text) {
+    global uiLog
+    if !IsSet(uiLog)                                     ; a log line before ui.ahk ran its top code (closing during start-up)
+        uiLog := []
     text := Trim(text)
     stamp := FormatTime(, "HH:mm:ss") "  "
     first := true
