@@ -29,7 +29,7 @@
 
 ## 🩹 Recent fixes
 
-- **Leaving Infinity** - when the bot wants out (raid time) it now looks for the results screen every 0.8 s instead of 2.5 s, so it presses LEAVE before the game's own AUTO RETRY does.
+- **Leaving Infinity** - the bot now looks for the results screen every 0.8 s instead of 2.5 s (also after a death), so it presses LEAVE before the game's own AUTO RETRY does.
 - **Setup check needs Roblox open** - Continue stays locked until Roblox is running, so the full check (window size, keyboard layout) really runs.
 - **Setup check** - now shows a yellow warning when the screen is not 1920x1080 or the Windows scale is not 100% (the bot is tuned for those; other values may work but are not tested).
 - **Modes menu not recognised** - on some PCs (for example 1920x1200 with Windows scale 125%) the Speed Raid / Dimension buttons were never found. The match is now looser, with a safety check against false hits.
