@@ -646,8 +646,10 @@ FlushRun() {
 SetupChecks(deep := false) {
     r := []
     Add := (name, state, fix := "") => r.Push({name: name, state: state, fix: fix})
-    if A_ScreenWidth >= SCR_W && A_ScreenHeight >= SCR_H
-        Add("Screen resolution " A_ScreenWidth "x" A_ScreenHeight (A_ScreenWidth = SCR_W && A_ScreenHeight = SCR_H ? "" : " (the game uses the top-left 1920x1080)"), "ok")
+    if A_ScreenWidth = SCR_W && A_ScreenHeight = SCR_H
+        Add("Screen resolution " A_ScreenWidth "x" A_ScreenHeight, "ok")
+    else if A_ScreenWidth >= SCR_W && A_ScreenHeight >= SCR_H     ; 8.11: the bot is tuned on 1920x1080, other sizes are not tested
+        Add("Screen resolution " A_ScreenWidth "x" A_ScreenHeight " (the bot is tuned for 1920x1080)", "warn", "Should work, but screens may not be recognised. If so: Display settings > Display resolution: 1920 x 1080.")
     else
         Add("Screen resolution is " A_ScreenWidth "x" A_ScreenHeight, "fail", "Right-click the desktop > Display settings > Display resolution: choose 1920 x 1080 or more.")
     MonitorGetWorkArea(MonitorGetPrimary(), &wl, &wt, &wr, &wb)
@@ -655,8 +657,10 @@ SetupChecks(deep := false) {
     ; the taskbar decides, not A_ScreenDPI: it is fixed at sign-in, a scale changed inside the session is only seen in the work area
     scale := ""
     try scale := Round(DllCall("GetDpiForSystem", "uint") / 96 * 100) "%"
-    if cover <= 0
-        Add("Windows display scale " scale (scale = "100%" ? "" : " (the game area is free)"), "ok")
+    if cover <= 0 && scale = "100%"
+        Add("Windows display scale " scale, "ok")
+    else if cover <= 0                                    ; 8.11: free game area, but only 100% is tested
+        Add("Windows display scale " scale " (the bot is tuned for 100%)", "warn", "Should work, but screens may not be recognised. If so: Display settings > Scale: 100%, then sign out and sign in again.")
     else if cover <= 10                                   ; the r / x skill points are at y 1025: more cover hides them
         Add("Windows display scale " scale ": the taskbar covers " cover " px of the game", "warn", "Should work. If screens are not recognised: Display settings > Scale: 100%, or auto-hide the taskbar.")
     else
