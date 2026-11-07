@@ -1718,7 +1718,9 @@ LeaveInfinity() {
         ; the button is translucent, so its colour depends on the scene behind (3.11: the template missed it and the game's
         ; AUTO RETRY looped Infinity for hours). Fallback: the light REWARDS panel, confirmed by OCR, then click the fixed LEAVE spot
         static panelAt := 0
-        if A_TickCount - panelAt < 2500
+        ; 8.11: the game's own AUTO RETRY presses RETRY 3-5 s after the results show: when the bot wants out (the goal is not
+        ; this mode any more) the fallback looks every 0.8 s, else every 2.5 s (it costs OCR time in fights)
+        if A_TickCount - panelAt < (Target() = (lastEntered = "dungeon" ? "dungeon" : "infinity") ? 2500 : 800)
             return false
         panelAt := A_TickCount
         light := 0
