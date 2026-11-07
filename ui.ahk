@@ -925,8 +925,8 @@ DrawSetup() {
         Tx(Chr(it.state = "ok" ? 0xE73E : it.state = "warn" ? 0xE7BA : 0xE711), "icon", 13, 0, "FFFFFF", x + 28, ry + 2, 24, 24, 1)
         Tx(it.name, "ui", 14, 1, C.text, x + 64, ry, 400, 22)
         if it.fix != ""
-            TxP(it.fix, "ui", 11, C.dim, x + 64, ry + 22, 410, 32)   ; wraps to two lines
-        ry += it.fix != "" ? 60 : 40
+            TxP(it.fix, "ui", 11, C.dim, x + 64, ry + 22, 410, Max(32, Ceil(StrLen(it.fix) / 62) * 15))   ; wraps (the OCR fix has 3 lines)
+        ry += it.fix != "" ? 28 + Max(32, Ceil(StrLen(it.fix) / 62) * 15) : 40
     }
     tips := ["Graphics quality: set it to the lowest (Esc > Settings in Roblox).",
              "Turn off visual effects and extra animations in the game settings: they hide the colours the bot reads.",

@@ -682,9 +682,9 @@ SetupChecks(deep := false) {
         if text != "" && !InStr(text, "ERROR")
             Add("Text recognition (OCR) works", "ok")
         else if text = ""
-            Add("Text recognition (OCR) gave no result", "warn", "Windows Settings > Time & Language > Language & region: add English (United States), restart the PC.")
+            Add("Text recognition (OCR) gave no result", "warn", "Settings > Time & Language > Language & region: add English (United States), restart the PC. If it still fails, run PowerShell as administrator: Add-WindowsCapability -Online -Name Language.OCR~~~en-US~0.0.1.0")
         else
-            Add("Text recognition (OCR) failed", "fail", "Windows Settings > Time & Language > Language & region: add English (United States), restart the PC.")
+            Add("Text recognition (OCR) failed", "fail", "Settings > Time & Language > Language & region: add English (United States), restart the PC. If it still fails, run PowerShell as administrator: Add-WindowsCapability -Online -Name Language.OCR~~~en-US~0.0.1.0")
     }
     if hwnd := WinExist(GAME) {
         WinGetClientPos &cx, &cy, &cw, &ch, GAME

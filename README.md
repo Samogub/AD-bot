@@ -29,6 +29,7 @@
 
 ## 🩹 Recent fixes
 
+- **OCR help** - when text recognition fails, Setup check now also shows the Windows command that installs the English OCR (the Language & region page often does not offer it).
 - **Leaving Infinity** - the bot now looks for the results screen every 0.8 s instead of 2.5 s (also after a death), so it presses LEAVE before the game's own AUTO RETRY does.
 - **Setup check needs Roblox open** - Continue stays locked until Roblox is running, so the full check (window size, keyboard layout) really runs.
 - **Setup check** - now shows a yellow warning when the screen is not 1920x1080 or the Windows scale is not 100% (the bot is tuned for those; other values may work but are not tested).
