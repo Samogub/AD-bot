@@ -285,7 +285,7 @@ CompactRows(name) {
             rows.Push(CTog(CT("dungeon", "DIM ON", false, "t2_dungeon"), CT("dimFight", "KEEP FIGHT")))
             rows.Push(CStep("START DELAY", "dimShift", 100, 0, 5000, 1000, "s", 0))
             rows.Push({k: "chips", items: [["METHOD 1", cfg["dimMethod"] != "2", PickDimMethod.Bind("1"), false, "dm_1"], ["METHOD 2", cfg["dimMethod"] = "2", PickDimMethod.Bind("2"), false, "dm_2"]]})
-            rows.Push({k: "btns", items: [["EDIT RUN", DimEdit], ["FOLDER", OpenPath.Bind(DIM_DIR)]]})
+            rows.Push({k: "btns", items: [["EDIT RUN", DimEdit], ["FOLDER", (*) => OpenPath(DimDir())]]})
             rows.Push({k: "act", label: "CHARACTER & STATS", fn: OpenDimFull})
         case "system":
             rows.Push(CTog(CT("sfx", "SOUNDS"), CT("music", "MUSIC")))

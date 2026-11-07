@@ -1207,7 +1207,7 @@ PageDimension() {
     TxP("Starts when enemies show up. Run: " rt.Length " steps, " Round(last / 1000, 1) " s. Same character and loadout as recorded.", "ui", 11, C.dim, CX + 20, py + 224, colw, 36)
     bw := (colw - 12) // 2
     Btn(CX + 20, py + 262, bw, 36, "Edit the run", "dim_edit", DimEdit, false, Chr(0xE70F))
-    Btn(CX + 20 + bw + 12, py + 262, bw, 36, "Open folder", "dim_dir", OpenPath.Bind(DIM_DIR), false, Chr(0xE8B7))
+    Btn(CX + 20 + bw + 12, py + 262, bw, 36, "Open folder", "dim_dir", (*) => OpenPath(DimDir()), false, Chr(0xE8B7))
     TxP("Enemies late? Edit the run, pick a row, Wait +100 ms, Save.", "ui", 11, C.dim, CX + 20, py + 306, colw, 36)
     Panel(rx, py, lw, CHT - 46, "Character for this run")
     ic := IMGDIR DIM_CHAR.icon
@@ -1241,8 +1241,8 @@ DrawPng(file, x, y, w, h) {
 }
 
 DimEdit(*) {
-    DirCreate DIM_DIR
-    try Run '"' A_AhkPath '" "' A_ScriptDir '\tools\Recorder.ahk" "' RTrim(DIM_DIR, "\") '"'   ; no trailing \ before the quote (\" would escape it)
+    DirCreate DimDir()
+    try Run '"' A_AhkPath '" "' A_ScriptDir '\tools\Recorder.ahk" "' RTrim(DimDir(), "\") '"'   ; no trailing \ before the quote (\" would escape it)
     catch as e
         Log("Recorder did not start: " e.Message)
 }

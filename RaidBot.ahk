@@ -60,6 +60,7 @@ DUNGEON := ["", 0, "Giant Dimension", "i)Giant"]
 DIM_LEAD := 100
 #Include dungeon_giant.ahk               ; DUNGEON_ROUTE: the recorded run (built in), played by RunRoute()
 DIM_DIR := A_ScriptDir "\dimension\giant\"   ; the editable copy of the run: log.txt (Recorder format) + screenshots
+DimDir() => cfg["dimMethod"] = "2" ? A_ScriptDir "\dimension\giant2\" : DIM_DIR   ; Method 2 keeps its own recording
 DIM_MOBS := [820, 260, 280, 170]         ; where the first group (3 orange giants) stands at the Giant Dimension spawn
 KNOCKBACK_RAIDS := " divine "            ; лише тут бос відкидає: пошук боса й поворот камери після смерті
 RAID_LIST     := [1040, 340, 220, 570]   ; стовпчик назв і кнопок Create in the list рейдів (x, y, w, h)
@@ -2246,8 +2247,8 @@ RunRoute(route) {
 DimRoute() {
     static at := "", route := 0, atMethod := "", warned := false
     method := cfg["dimMethod"] = "2" ? "2" : "1"
-    file := DIM_DIR "log.txt"
-    if method = "2"
+    file := DimDir() "log.txt"
+    if method = "2" && !FileExist(file)                   ; Method 2: own recording in dimension\giant2, else the built-in route
         return DUNGEON_ROUTE
     if !FileExist(file) {
         if !warned {
@@ -2449,6 +2450,7 @@ EnsureLoadout(n, onlyCheck := false) {
             return false
         if A_Index > 1 {
             Log("  loadout " n ": Bag did not open - attempt " A_Index)
+            ClickXY(MODES_CLOSE[1], MODES_CLOSE[2])           ; 07.11: меню режимів лишилось відкритим після LEAVE і закриває Bag
             Sleep 1500
         }
         ClickXY(BAG_BTN[1], BAG_BTN[2])
