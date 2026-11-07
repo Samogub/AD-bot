@@ -715,7 +715,7 @@ SetupChecks(deep := false) {
         else
             Add("Roblox keyboard layout is " Format("{:04X}", hkl), "warn", "Click inside Roblox, press Win+Space until the language shows ENG, then press Check again.")
     } else
-        Add("Roblox is not running", "warn", "Start Roblox and open the game, wait in the lobby, then press Check again.")
+        Add("Roblox is not running", "fail", "Start Roblox and open the game, wait in the lobby, then press Check again (the full check needs the game open).")
     return r
 }
 

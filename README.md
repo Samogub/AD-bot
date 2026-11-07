@@ -29,6 +29,7 @@
 
 ## 🩹 Recent fixes
 
+- **Setup check needs Roblox open** - Continue stays locked until Roblox is running, so the full check (window size, keyboard layout) really runs.
 - **Setup check** - now shows a yellow warning when the screen is not 1920x1080 or the Windows scale is not 100% (the bot is tuned for those; other values may work but are not tested).
 - **Modes menu not recognised** - on some PCs (for example 1920x1200 with Windows scale 125%) the Speed Raid / Dimension buttons were never found. The match is now looser, with a safety check against false hits.
 - **Gems not counted** - after a game update the gem and token card pictures no longer matched, so Dimension and Speed Raid gems stayed at 0. New pictures and a looser match.
