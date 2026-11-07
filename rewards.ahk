@@ -14,7 +14,8 @@ RESULT_BOX := [840, 530, 540, 170]
 rlPendingAt := 0                                 ; results line OCR started at this tick (0 = none pending)
 rlKind := ""                                     ; "infinity" / "dimension"
 
-CardFind(name, &x, &y) => FindImg(name, &x, &y, CARD_BOX[1], CARD_BOX[2], CARD_BOX[3], CARD_BOX[4])
+; *60: the card background shows through the icon a little (7.11: the old *40 never matched the gem card, gems stayed 0 all day)
+CardFind(name, &x, &y) => FindImg(name, &x, &y, CARD_BOX[1], CARD_BOX[2], CARD_BOX[3], CARD_BOX[4], "*60 *TransFF00FF")
 
 ; number area: 64x34 at the card's bottom-left, from the icon template position
 CardRegion(x, y) => [x - 30, y + 56, 64, 34]
