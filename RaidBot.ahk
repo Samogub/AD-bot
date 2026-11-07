@@ -3016,6 +3016,8 @@ JoinFromBrowser() {
     if WinGetMinMax(BROWSER) != 1
         WinMaximize BROWSER
     Sleep 1500
+    if PlayFromPage()                                     ; main way; Join on the Servers tab and roblox:// are the backups
+        return true
     b := JOIN_BOX
     Loop 2 {
         ; перший темно-синій піксель згори, але лише якщо це кнопка (200x32): той самий колір і правіше, і нижче
@@ -3040,6 +3042,22 @@ JoinFromBrowser() {
     }
     Log("  Join button not found in the browser (is the Servers tab open?)")
     Screenshot("no_join")
+    return false
+}
+
+; The big blue Play button of the game page (0x335FFF, 300x60): starts the game through the signed-in browser.
+; 7.11: a plain roblox:// start showed the client's sign-in page and never got past it (and trusting the device did not help).
+PlayFromPage() {
+    y := 380
+    while y < 620 && PixelSearch(&jx, &jy, 1240, y, 1700, 620, 0x335FFF, 8) {
+        if SameColor(jx + 120, jy + 10, 0x335FFF, 12) && SameColor(jx + 120, jy + 45, 0x335FFF, 12) && SameColor(jx + 200, jy + 25, 0x335FFF, 12) {
+            ClickXY(jx + 100, jy + 25)
+            ParkMouse()
+            Log("  pressed Play on the game page (" jx + 100 ", " jy + 25 ")")
+            return true
+        }
+        y := jy + 1
+    }
     return false
 }
 
