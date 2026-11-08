@@ -2387,6 +2387,10 @@ RunRoute(route) {
         Screenshot("route_nostart")
         return
     }
+    if kind != "xdim" && running {   ; 8.11 (Discord report): the character did not walk, only the skills worked - the game was not ready for movement yet
+        SetStatus("Dimension: first enemies seen, starting the run in 2 s")
+        Sleep 2000
+    }
     Log("  dungeon route started (method " cfg["dimMethod"] ", " (route == DUNGEON_ROUTE ? "built-in" : "log.txt") ", " route.Length " steps)")
     SetStatus("dungeon: playing the recorded route")
     DllCall("winmm\timeBeginPeriod", "uint", 1)
