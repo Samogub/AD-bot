@@ -1852,14 +1852,6 @@ FindImg(name, &x, &y, x1 := 0, y1 := 0, x2 := 1920, y2 := 1080, opts := "") {   
     alt := IMGDIR StrReplace(name, ".png", "_2.png")
     if !found && FileExist(alt)
         try found := ImageSearch(&x, &y, x1, y1, x2, y2, opts " " alt)
-    ; 8.11: on another PC (1920x1200, scale 125%) the letters of the pulsing cards differ by up to ~90 in colour: *40 never matched.
-    ; The BORDER check below keeps this loose retry from matching a plain blob of letter colour.
-    if !found && BORDER.Has(name) && InStr(opts, "*" TOLERANCE " ") {
-        loose := StrReplace(opts, "*" TOLERANCE " ", "*100 ")
-        try found := ImageSearch(&x, &y, x1, y1, x2, y2, loose " " file)
-        if !found && FileExist(alt)
-            try found := ImageSearch(&x, &y, x1, y1, x2, y2, loose " " alt)
-    }
     if found && BORDER.Has(name) && !BorderOk(name, x, y) {
         Log("  " name ": matched a blob of letter colour, ignoring")
         return false
@@ -2526,6 +2518,10 @@ MenuLoadoutWrong(n) {
     ClickXY(MODES_CLOSE[1], MODES_CLOSE[2])
     ParkMouse()
     Sleep 800
+    ; the menu may have been a false match in a plain lobby (PLAY visible): then this branch would repeat forever and the
+    ; lobby branch with EnsureLoadout never gets its turn - set the loadout right here
+    if SeePlay(&px, &py)
+        EnsureLoadout(n)
     return true
 }
 
