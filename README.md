@@ -27,7 +27,7 @@
 | 🩺 **Better Setup check** | Checks that Roblox runs first, then really looks for the PLAY button, reads the scale of the monitor the game is on, warns about a self-hiding taskbar. After **Stop**, a yellow plate tells what went wrong and how to fix it. |
 | 🌗 **Light theme** | Sun / moon switch at the top of the compact window. |
 
-> **Loadouts:** keep the original names in the Bag, as the game spells them - **Loudout 1** (raid), **Loudout 2** (Infinity, Dimension, Extreme), **Loudout 3** (Speed Raid). Do not rename them: the bot finds them by name.
+> **Loadouts:** keep the original names in the Bag - **Loadout 1** (raid), **Loadout 2** (Infinity, Dimension, Extreme), **Loadout 3** (Speed Raid). Do not rename them: the bot finds them by name.
 
 <div align="center"><img src="docs/compact_035.png" width="520" alt="0.3.5 compact window, dark and light theme"><br><sub>0.3.5: Extreme Dimension and slots, dark and light theme</sub></div>
 
