@@ -4,12 +4,75 @@
 
 CMP_W := 320                               ; logical width of the compact window
 CMP_TOP := 104                             ; y of the first group header (header, goal line, timers above)
-CMP_GROUPS := [["modes", "MODES"], ["raid", "RAID"], ["infinity", "INFINITY"], ["dimension", "GIANT DIMENSION"], ["system", "SYSTEM"]]
+CMP_GROUPS := [["modes", "MODES"], ["raid", "RAID"], ["infinity", "INFINITY"], ["dimension", "DIMENSION"], ["system", "SYSTEM"]]
 ; [ui] cScale (1.0-2.0) scales the compact window only, [ui] cAlpha (150-255) is its opacity while the bot is stopped
 cScale := IsNumber(IniRead(INI, "ui", "cScale", "1.30")) ? Min(2, Max(1, Number(IniRead(INI, "ui", "cScale", "1.30")))) : 1.30
 cAlpha := IsInteger(IniRead(INI, "ui", "cAlpha", "255")) ? Min(255, Max(150, Integer(IniRead(INI, "ui", "cAlpha", "255")))) : 255
 CK() => UI_K * cScale
 CMP_BG := "050505", CMP_GRAY := "888888", CMP_VAL := "E8E8E8", CMP_RED := "9B111E"
+
+; ------------------------------ light / dark theme ------------------------------
+; The light theme is the dark one with every grey turned over (black <-> white, like the video; red accents and gold stay).
+; Switching wipes the new look over the old one along a golden diagonal (THEME_MS).
+cTheme := IniRead(INI, "ui", "cTheme", "dark") = "light" ? "light" : "dark"
+themeV := cTheme = "light" ? 1.0 : 0.0                  ; 0 dark .. 1 light, animated by ThemeTick
+themeFrom := themeV, themeAt := 0
+tmap := false                                            ; Col() maps colours to the light palette while true
+THEME_MS := 750
+
+TCol(hex) {
+    static cache := Map()
+    if cache.Has(hex)
+        return cache[hex]
+    v := Integer("0x" hex), r := (v >> 16) & 255, g0 := (v >> 8) & 255, b := v & 255
+    if Max(r, g0, b) - Min(r, g0, b) > 60                ; a real colour (red accents, gold): kept
+        return cache[hex] := hex
+    k := 1 - (r + g0 + b) / 765                           ; dark -> light, light -> dark
+    c := Round(255 * k)                                   ; plain grey, no tint: white background, near-black text
+    return cache[hex] := Format("{:02X}{:02X}{:02X}", c, c, c)
+}
+
+ThemeK() {
+    global themeV
+    if themeAt {
+        u := Min(1, (A_TickCount - themeAt) / THEME_MS)
+        e := u < 0.5 ? 4 * u ** 3 : 1 - (-2 * u + 2) ** 3 / 2   ; ease in-out
+        themeV := themeFrom + ((cTheme = "light" ? 1 : 0) - themeFrom) * e
+    }
+    return themeV
+}
+
+ThemeToggle(*) {
+    global cTheme, themeFrom, themeAt
+    themeFrom := ThemeK()
+    cTheme := cTheme = "light" ? "dark" : "light"
+    themeAt := A_TickCount
+    IniWrite cTheme, INI, "ui", "cTheme"
+    Log("ui theme = " cTheme)
+    SetTimer(ThemeTick, 15)
+}
+
+ThemeTick() {
+    global themeAt, themeV
+    if A_TickCount - themeAt >= THEME_MS {
+        themeAt := 0, themeV := cTheme = "light" ? 1.0 : 0.0
+        SetTimer(ThemeTick, 0)
+    }
+    UiRender()
+}
+
+; header button: a sun (dark theme, click -> light) that turns into a moon (light theme, click -> dark)
+ThemeIcon(cx, cy, k) {
+    a := Round(255 * (1 - k))
+    if a > 0
+        Loop 8 {
+            ang := (A_Index - 1) * 0.785 + k * 1.5
+            CLine(cx + Cos(ang) * 6.5, cy + Sin(ang) * 6.5, cx + Cos(ang) * 9, cy + Sin(ang) * 9, a)
+        }
+    Dot(cx - 4.5, cy - 4.5, 9, k < 0.5 ? "FFD36A" : CMP_VAL)
+    if k > 0
+        Dot(cx - 4.5 + 3.5 * k, cy - 4.5 - 2.5 * k, 9 * k, CMP_BG)
+}
 
 ; ------------------------------ music ------------------------------
 ; compact skin + [raid] music=1: a random track from music\ at 1% volume; a new random one each time the skin opens
@@ -157,10 +220,19 @@ SkinRow(x, y, w) {
 }
 
 ; ------------------------------ groups ------------------------------
+xOpen := false                                           ; the Extreme Dimension sub-group inside DIMENSION (not saved)
+XdimFold(*) {
+    global xOpen
+    xOpen := !xOpen
+    SkinSize()
+    UiRender(true)
+}
+
 CompactOpen(name) => InStr(cOpen, " " name " ") > 0
 
 CompactToggle(name) {
-    global cOpen
+    global cOpen, pickOpen, pickK
+    pickOpen := false, pickK := 0.0                         ; folding a group closes the raid picker
     if CompactOpen(name)
         cOpen := StrReplace(cOpen, " " name " ", " ")
     else {
@@ -245,15 +317,33 @@ CTime(label, key, step, lo, hi, def) {
         , dn: StepTime.Bind(key, -step, lo, hi, def), up: StepTime.Bind(key, step, lo, hi, def)}
 }
 
+; greyed out and not clickable (a locked row keeps its place)
+CLockRow(r) {
+    switch r.k {
+        case "tog":
+            r.a.off := true
+            if IsObject(r.b)
+                r.b.off := true
+        case "chips":
+            for it in r.items
+                it[4] := true
+        case "step":
+            r.off := true
+        case "btns":
+            r.lock := true
+    }
+}
+
 CompactRows(name) {
     rows := []
     switch name {
         case "modes":
             rows.Push(CTog(CT("raid", "RAID"), CT("speed", "SPEED")))
-            rows.Push(CTog(CT("infinity", "INFINITY", cfg["dungeon"] = "1"), CT("dungeon", "DIMENSION")))
-            rows.Push(CTog(CT("loadouts", "LOADOUTS")))
+            rows.Push(CTog(CT("infinity", "INFINITY", cfg["dungeon"] = "1" || cfg["xdim"] = "1"), CT("dungeon", "DIMENSION", cfg["xdim"] = "1")))
+            rows.Push(CTog(CT("loadouts", "LOADOUTS"), CT("xdim", "EXTREME")))
         case "raid":
             solo := cfg["soloRaid"] = "1"
+            rows.Push({k: "pick", label: "RAID"})
             rows.Push(CStep("RAID EVERY", "raidEvery", 1, 1, 6, 1, "h", 1))
             if cfg["bossAuto"] = "1"                         ; the game's Auto fights: walking, turning and reset settings are unused
                 rows.Push(CTog(CT("soloRaid", "SOLO")))
@@ -273,7 +363,6 @@ CompactRows(name) {
         case "infinity":
             ga := cfg["infGameAuto"] = "1"                   ; the game's Auto fights: AOE settings are locked
             rows.Push(CTog(CT("infGameAuto", "GAME AUTO")))
-            rows.Push(CTime("LEAVE AT" (cfg["dungeon"] = "1" ? " (Infinity)" : ""), "infStop", 30, 600, 3480, 57 * 60 + 30))   ; v0.3: always stand still
             rows.Push(CStep("AOE PAUSE", "spreadMs", 500, 1000, 20000, 1000, "s", 7000, ga))
             rows.Push(CStep("AUTO IF STUCK", "infAuto", 5000, 0, 60000, 1000, "s", 15000, ga))
             rows.Push(CCap("BIG AOE SKILLS"))
@@ -283,11 +372,27 @@ CompactRows(name) {
             rows.Push({k: "chips", items: items})
         case "dimension":
             rows.Push(CTog(CT("dungeon", "DIM ON", false, "t2_dungeon"), CT("dimFight", "KEEP FIGHT")))
+            rows.Push({k: "chips", items: [["GIANT", DimKindUi() = "giant", PickDimName.Bind("giant"), false, "dk_giant"], ["HALLOWEEN", DimKindUi() = "halloween", PickDimName.Bind("halloween"), false, "dk_halloween"], ["DEATH", DimKindUi() = "death", PickDimName.Bind("death"), false, "dk_death"]]})
             rows.Push(CStep("START DELAY", "dimShift", 100, 0, 5000, 1000, "s", 0))
-            rows.Push({k: "chips", items: [["METHOD 1", cfg["dimMethod"] != "2", PickDimMethod.Bind("1"), false, "dm_1"], ["METHOD 2", cfg["dimMethod"] = "2", PickDimMethod.Bind("2"), false, "dm_2"]]})
-            rows.Push({k: "btns", items: [["EDIT RUN", DimEdit], ["FOLDER", (*) => OpenPath(DimDir())]]})
+            rows.Push({k: "chips", items: [["SLOT 1", !InStr("2345", cfg["dimMethod"]), PickDimMethod.Bind("1"), false, "dm_1"], ["SLOT 2", cfg["dimMethod"] = "2", PickDimMethod.Bind("2"), false, "dm_2"]]})
+            rows.Push({k: "chips", items: [["SLOT 3", cfg["dimMethod"] = "3", PickDimMethod.Bind("3"), false, "dm_3"], ["SLOT 4", cfg["dimMethod"] = "4", PickDimMethod.Bind("4"), false, "dm_4"], ["SLOT 5", cfg["dimMethod"] = "5", PickDimMethod.Bind("5"), false, "dm_5"]]})
+            rows.Push({k: "btns", items: [["EDIT RUN", DimEdit], ["FOLDER", (*) => OpenPath(DimDir(DimKindUi()))]]})
+            if cfg["xdim"] = "1"                              ; Extreme on: the plain Dimension is greyed out (like Infinity under Dimension)
+                for r0 in rows
+                    CLockRow(r0)
+            rows.Push({k: "sub", t: CT("xdim", "EXTREME DIM"), open: xOpen})
+            if xOpen {
+                n0 := rows.Length
+                rows.Push({k: "chips", items: [["EASY", cfg["xdimPick"] = "1", PickXdim.Bind("1"), false, "xd_1"], ["NORMAL", cfg["xdimPick"] = "2", PickXdim.Bind("2"), false, "xd_2"], ["NIGHTMARE", cfg["xdimPick"] = "3", PickXdim.Bind("3"), false, "xd_3"], ["EXTREME", cfg["xdimPick"] = "4", PickXdim.Bind("4"), false, "xd_4"]]})
+                rows.Push(CStep("WAIT AFTER START", "xdimWait", 1, 5, 60, 1, "s", 15))
+                rows.Push({k: "btns", pre: "x", items: [["EDIT RUN", DimEditK.Bind("xdim")], ["FOLDER", (*) => OpenPath(DimDir("xdim"))]]})
+                if cfg["xdim"] != "1"                         ; Extreme off: its settings are greyed out
+                    Loop rows.Length - n0
+                        CLockRow(rows[n0 + A_Index])
+            }
             rows.Push({k: "act", label: "CHARACTER & STATS", fn: OpenDimFull})
         case "system":
+            rows.Push(CTime("LEAVE AT", "infStop", 30, 600, 3480, 57 * 60 + 30))   ; all modes: the second of the hour when the bot leaves for the raid
             rows.Push(CTog(CT("sfx", "SOUNDS"), CT("music", "MUSIC")))
             rows.Push({k: "step", label: "SIZE", val: Format("{:.2f}x", cScale), id: "cscale", off: false
                 , dn: StepCScale.Bind(-0.05), up: StepCScale.Bind(0.05)})
@@ -362,16 +467,61 @@ LTx(text, px, hex, x, y, w, h, sp := 1, align := 0, bold := 0, a := 255, glow :=
 
 ; ------------------------------ frame ------------------------------
 CompactRender() {
-    global gr, hits, uiBmp
+    global gr, uiBmp, tmap
     kc := CK()
     if PH != Round(CompactHeight() * kc) || PW != Round(CMP_W * kc)
         SkinSize()
+    k := ThemeK()
+    if k <= 0 || k >= 1 {
+        tmap := k >= 1
+        cv := CompactPaint()
+    } else {                                              ; switching: the light frame is wiped over the dark one along a golden diagonal
+        tmap := false
+        cv := CompactPaint()
+        tmap := true
+        lt := CompactPaint()
+        tmap := false
+        gr := cv[2]
+        DllCall("gdiplus\GdipResetWorldTransform", "ptr", gr)
+        pos := -30 * kc + (PW + PH + 60 * kc) * k
+        DllCall("gdiplus\GdipCreateTexture", "ptr", lt[1], "int", 0, "ptr*", &tb := 0)
+        pts := Buffer(32)
+        NumPut("float", 0, "float", 0, "float", pos, "float", 0, "float", pos - PH, "float", PH, "float", 0, "float", PH, pts)
+        DllCall("gdiplus\GdipFillPolygon", "ptr", gr, "ptr", tb, "ptr", pts, "int", 4, "int", 0)
+        DllCall("gdiplus\GdipDeleteBrush", "ptr", tb)
+        DllCall("gdiplus\GdipDeleteGraphics", "ptr", lt[2])
+        DllCall("gdiplus\GdipDisposeImage", "ptr", lt[1])
+        for w in [[18, 35], [8, 90], [2.5, 240]] {         ; the golden edge: soft glow, then a bright core
+            DllCall("gdiplus\GdipCreatePen1", "uint", Col("FFD36A", w[2]), "float", w[1] * kc, "int", 2, "ptr*", &pen := 0)
+            DllCall("gdiplus\GdipDrawLine", "ptr", gr, "ptr", pen, "float", pos, "float", 0, "float", pos - PH, "float", PH)
+            DllCall("gdiplus\GdipDeletePen", "ptr", pen)
+        }
+        Loop 6 {                                          ; sparks riding the edge
+            u := Mod(A_Index * 0.173 + k * 2.3, 1)
+            Dot(pos - PH * u - 3 * kc + Sin(A_TickCount / 90 + A_Index) * 6 * kc, PH * u - 3 * kc, 6 * kc, "FFF4C8", 220)
+        }
+    }
+    tmap := false
+    hbm := ToHbm(cv)
+    gr := 0
+    if uiBmp
+        DllCall("DeleteObject", "ptr", uiBmp)
+    uiBmp := hbm
+    UiBlit()
+}
+
+; one full frame of the compact window in the current palette (tmap); returns the canvas
+CompactPaint() {
+    global gr, hits
+    kc := CK()
     cv := Canvas(PW, PH, CMP_BG)
     gr := cv[2]
     DllCall("gdiplus\GdipScaleWorldTransform", "ptr", gr, "float", kc, "float", kc, "int", 0)
     hits := []
     W := CMP_W, H := PH / kc
     GRY := CMP_GRAY, VAL := CMP_VAL, RED := CMP_RED
+    if tmap                                               ; light: a thin gold rim (the video's golden glow)
+        CFrame(1, 1, W - 2, H - 2, "E0A93C", 110)
     CFrame(0, 0, W, H, "FFFFFF", 140)
     ; header (drag area: empty parts of y < 62 start a window drag in UiClick)
     LTx("AD/BOT", 10, GRY, 12, 8, 120, 16, 2)
@@ -387,6 +537,10 @@ CompactRender() {
         }
         Hit(b[2], 4, 22, 20, b[1], b[1] = "min" ? (() => g.Minimize()) : (() => ExitApp()))
     }
+    if IsHot("theme")                                        ; light / dark switch
+        CRect(93, 4, 22, 20, "FFFFFF", 20)
+    ThemeIcon(104, 14, ThemeK())
+    Hit(93, 4, 22, 20, "theme", ThemeToggle)
     CRect(12, 28, W - 24, 1, "FFFFFF", 50)
     ; goal line
     Dot(12, 45, 10, "444444")                                ; window is shown only while stopped: last run state
@@ -435,24 +589,31 @@ CompactRender() {
     for ly in [9, 14, 19]
         CRect(sx + 8, by + ly, 14, 1, "FFFFFF")
     Hit(sx, by, 30, 30, "skin_full", SetSkin.Bind("full"))
+    if pickK > 0
+        CompactPickOverlay(W, by)
     ; corner brackets
     CRect(0, 0, 10, 2, "FFFFFF"), CRect(0, 0, 2, 10, "FFFFFF")
     CRect(W - 10, H - 2, 10, 2, "FFFFFF"), CRect(W - 2, H - 10, 2, 10, "FFFFFF")
-    hbm := ToHbm(cv)
-    gr := 0
-    if uiBmp
-        DllCall("DeleteObject", "ptr", uiBmp)
-    uiBmp := hbm
-    UiBlit()
+    return cv
 }
 
 CompactRow(r, y) {
+    global pickY
     W := CMP_W
     switch r.k {
         case "tog":
             CToggle(r.a, 22, y)
             if IsObject(r.b)
                 CToggle(r.b, 166, y)
+        case "sub":
+            ; the whole row right of the EXTREME DIM checkbox text folds the sub-group (lit on hover, like a group header)
+            static adv := TxW("MM", "mono", 10, 0) - TxW("M", "mono", 10, 0)
+            fx := 18 + Min(140, 16 + StrLen(r.t.label) * (adv + 1) + 10)
+            if IsHot("xd_open")
+                CRect(fx, y + 1, W - fx, 22, "FFFFFF", 12)
+            CToggle(r.t, 22, y)
+            Tx(r.open ? "[-]" : "[+]", "mono", 11, 1, CMP_RED, W - 48, y, 36, 24, 2)
+            Hit(fx, y, W - fx, 24, "xd_open", XdimFold)
         case "cap":
             LTx(r.label, 9, CMP_GRAY, 22, y, 280, 18, 1, 0, 0, 160)
         case "step":
@@ -484,13 +645,23 @@ CompactRow(r, y) {
         case "btns":
             n := r.items.Length
             bw := (296 - (n - 1) * 6) / n
+            lk := r.HasProp("lock") && r.lock
             for i, it in r.items {
                 bx := 12 + (i - 1) * (bw + 6)
-                id := "cb_" it[1]
-                CFrame(bx, y + 2, bw, 20, "FFFFFF", IsHot(id) ? 255 : 90)
-                LTx(it[1], 10, CMP_VAL, bx, y + 2, bw, 20, 2, 1)
-                Hit(bx, y + 2, bw, 20, id, it[2])
+                id := "cb_" (r.HasProp("pre") ? r.pre : "") it[1]
+                CFrame(bx, y + 2, bw, 20, "FFFFFF", lk ? 30 : IsHot(id) ? 255 : 90)
+                LTx(it[1], 10, lk ? CMP_GRAY : CMP_VAL, bx, y + 2, bw, 20, 2, 1, 0, lk ? 100 : 255)
+                if !lk
+                    Hit(bx, y + 2, bw, 20, id, it[2])
             }
+        case "pick":
+            pickY := y
+            LTx(r.label, 10, CMP_GRAY, 22, y, 80, 24, 1)
+            bx := 96, bw := W - 12 - bx
+            CFrame(bx, y + 2, bw, 20, "FFFFFF", IsHot("pick") || pickOpen ? 255 : 120)
+            Tx(RaidShort(cfg["raidName"]), "mono", 11, 1, CMP_RED, bx + 6, y + 2, bw - 30, 20, 0)
+            Tx(pickOpen ? "v" : "^", "mono", 11, 1, CMP_VAL, bx + bw - 22, y + 2, 18, 20, 1)
+            Hit(bx, y + 2, bw, 20, "pick", PickToggle)
         case "act":
             id := "act_" r.label
             if IsHot(id)
@@ -501,22 +672,75 @@ CompactRow(r, y) {
     }
 }
 
+;------------------------------ raid picker ------------------------------
+; Drop-up list over the lower part of the window: grows from the bottom edge upwards (ease-out, about 0.25 s).
+; While it is open a full-window hit closes it, so a click anywhere else does not reach the rows under it.
+PickToggle(*) {
+    global pickOpen
+    pickOpen := !pickOpen
+    SetTimer(PickStep, 15)
+}
+
+PickStep() {
+    global pickK
+    pickK := pickOpen ? Min(1, pickK + 0.1) : Max(0, pickK - 0.14)
+    if pickK = (pickOpen ? 1 : 0)
+        SetTimer(PickStep, 0)
+    UiRender()
+}
+
+PickChoose(k, *) {
+    PickRaid(k)
+    PickToggle()
+}
+
+CompactPickOverlay(W, by) {
+    kk := 1 - (1 - pickK) ** 3
+    keys := [], rh := 22
+    for k in RAIDS
+        keys.Push(k)
+    full := keys.Length * rh + 8
+    bot := by - 6
+    hh := Round(Min(full, bot - 30) * kk)
+    top := bot - hh
+    CRect(10, top, W - 20, hh, CMP_BG)
+    CFrame(10, top, W - 20, hh, "FFFFFF", 200)
+    if pickOpen
+        Hit(0, 0, W, bot + 40, "pick_close", PickToggle)
+    for i, k in keys {
+        ry := top + 4 + (i - 1) * rh
+        if ry + rh > bot - 2 || ry + rh > top + hh
+            continue
+        on := cfg["raidName"] = k, id := "pk_" k
+        if IsHot(id) && pickOpen
+            CRect(12, ry, W - 24, rh, "FFFFFF", 16)
+        if on
+            CRect(16, ry + 8, 5, 5, CMP_RED)
+        LTx(StrUpper(RaidShort(k)), 10, on ? CMP_VAL : CMP_GRAY, 28, ry, W - 60, rh, 1)
+        if pickOpen
+            Hit(12, ry, W - 24, rh, id, PickChoose.Bind(k))
+    }
+}
+
 ; "■ NAME" (on) / "□ NAME" (off, dimmed); locked items are not clickable
 CToggle(t, x, y) {
     on := cfg[t.key] = "1" && !t.off
     id := t.id
+    static adv10 := TxW("MM", "mono", 10, 0) - TxW("M", "mono", 10, 0)
+    bw := Min(140, 16 + StrLen(t.label) * (adv10 + 1) + 10)     ; the highlight and the click area: the text, not the whole half row
     if !t.off && IsHot(id)
-        CRect(x - 4, y + 1, 140, 22, "FFFFFF", 14)
+        CRect(x - 4, y + 1, bw, 22, "FFFFFF", 14)
     CFrame(x, y + 7, 10, 10, "FFFFFF", t.off ? 30 : on ? 255 : 77)
     if on
         CRect(x + 3, y + 10, 4, 4, CMP_RED)
     LTx(t.label, 10, on ? CMP_VAL : CMP_GRAY, x + 16, y, 122, 24, 1, 0, 0, t.off ? 100 : 255)
     if !t.off
-        Hit(x - 4, y, 140, 24, id, FlipKey.Bind(t.key))
+        Hit(x - 4, y, bw, 24, id, FlipKey.Bind(t.key))
 }
 
 ; ------------------------------ fade-in of the compact window (bot stopped only) ------------------------------
 fadeA := 0, fading := false
+pickOpen := false, pickK := 0.0, pickY := 0                  ; raid picker (RAID group): drop-up list that slides up from the bottom
 
 ; what the bot is doing / did last: the mode it entered, else the goal of the run
 GoalKey() => lastEntered != "" ? lastEntered : runGoal

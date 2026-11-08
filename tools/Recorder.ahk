@@ -218,7 +218,26 @@ Add(kind, a, b := "", col := "", shot := false) {
     }
     Push(kind, a, b, col, num)                                ; time of the event itself, before the slow screenshot
     if num != ""
-        SaveRegion(dir num ".png", 0, 0, A_ScreenWidth, A_ScreenHeight)
+        QueueShot(dir num ".png")
+}
+
+; 8.11: the screenshot (~0.3 s) used to be taken inside the Critical key / mouse handler: the input hooks were blocked each time,
+; and in a long recording (130+ rows, 20+ screenshots) Windows dropped the hook - nothing more was recorded. Now it runs
+; from a timer, one at a time, so the handlers return at once.
+shotQ := [], shooting := false
+QueueShot(file) {
+    shotQ.Push(file)
+    SetTimer(DoShots, -10)
+}
+
+DoShots() {
+    global shooting
+    if shooting
+        return
+    shooting := true
+    while shotQ.Length
+        SaveRegion(shotQ.RemoveAt(1), 0, 0, A_ScreenWidth, A_ScreenHeight)
+    shooting := false
 }
 
 Push(kind, a, b := "", col := "", num := "") {
@@ -229,6 +248,15 @@ Push(kind, a, b := "", col := "", num := "") {
     global recMs
     recMs += st.w
     lv.Add("Vis", steps.Length, Row(st, recMs)*)
+    if rec && Mod(steps.Length, 25) = 0                       ; a long recording is kept on disk as it goes (log.partial.txt)
+        SetTimer(SavePartial, -50)
+}
+
+SavePartial() {
+    if !rec || dir = ""
+        return
+    try FileDelete dir "log.partial.txt"
+    try FileAppend LogText(), dir "log.partial.txt"
 }
 
 ; key text of a key step: Latin letter / digit from the vk code whatever the layout, else the recorded name
@@ -381,16 +409,30 @@ Do(st, down) {
 ; ---- editing ----
 ; a wait row before the selected row: everything after it comes that much later
 InsertPause() {
-    r := lv.GetNext()
-    if !r || playing
+    if playing
         return
-    ib := InputBox("Wait before row " r ", ms (1000 = 1 s):", "Wait", "w300 h130", "1000")
-    if ib.Result != "OK" || !IsInteger(ib.Value)
-        return
-    steps.InsertAt(r, {w: Integer(ib.Value), k: "wait", a: "", b: "", c: "", s: "", h: 0})
-    Fill()
-    lv.Modify(r, "Select Vis")
-    Say("wait added before row " r + 1 " (Save to keep it)")
+    r := lv.GetNext() || steps.Length + 1                 ; nothing selected: at the end
+    ; 8.11: own dialog owned by the window - an InputBox opened behind the always-on-top Recorder, so the button "did nothing"
+    dlg := Gui("+Owner" gw.Hwnd " +AlwaysOnTop", "Add wait")
+    dlg.SetFont("s9", "Segoe UI")
+    dlg.AddText(, (r > steps.Length ? "Wait at the end" : "Wait before row " r) ", ms (1000 = 1 s):")
+    fw := dlg.AddEdit("w120 Number", "1000")
+    dlg.AddButton("xm w90 Default", "OK").OnEvent("Click", Ok)
+    dlg.AddButton("x+4 w90", "Cancel").OnEvent("Click", (*) => dlg.Destroy())
+    dlg.OnEvent("Escape", (*) => dlg.Destroy())
+    dlg.Show()
+
+    Ok(*) {
+        ms := Integer("0" fw.Value)
+        dlg.Destroy()
+        if playing || !ms || r > steps.Length + 1
+            return
+        steps.InsertAt(r, {w: ms, k: "wait", a: "", b: "", c: "", s: "", h: 0})
+        Fill()
+        lv.Modify(0, "-Select")
+        lv.Modify(r, "Select Vis")
+        Say("wait " ms " ms added as row " r " (Save to keep it)")
+    }
 }
 
 ; longer / shorter wait before the selected rows: everything after them moves too
@@ -545,6 +587,16 @@ Save() {
         dir := ROOT FormatTime(, "yyyyMMdd_HHmmss") "\"
         DirCreate dir
     }
+    try FileDelete dir "log.txt"
+    FileAppend LogText(), dir "log.txt"
+    try FileDelete dir "log.partial.txt"
+    lv.Modify(0, "-Select")
+    lv.Modify(1, "Select Vis Focus")
+    Say("saved: " dir "log.txt")
+}
+
+; the whole list as log.txt text
+LogText() {
     t := 0, out := "; recording " A_ScreenWidth "x" A_ScreenHeight "`n"
     for st in steps {
         t += st.w                                             ; t = the moment of the step (for kp: the press)
@@ -552,11 +604,7 @@ Save() {
         if st.k = "kp"
             t += st.h                                         ; the next row's time already includes the hold
     }
-    try FileDelete dir "log.txt"
-    FileAppend out, dir "log.txt"
-    lv.Modify(0, "-Select")
-    lv.Modify(1, "Select Vis Focus")
-    Say("saved: " dir "log.txt")
+    return out
 }
 
 Load(folder) {

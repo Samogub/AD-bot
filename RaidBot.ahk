@@ -48,23 +48,34 @@ RAIDS := Map(
     "halloween", ["halloween.png", [113, 95], "Halloween Raid", "i)Hallow"],
     "divine",    ["divine.png",    [107, 92], "Divine Guardian Raid", "i)Divine"],
     "shiro",     ["", 0, "Infinity Shiro Raid", "i)Shiro"],
-    "onehero",   ["", 0, "One Hero 100 Raid", "i)One\s*Hero"],
     "saiya",     ["", 0, "Saiya Ultra Instinct Raid", "i)Saiya|Instinct"],
     "sungomi",   ["", 0, "Sun Gomi Raid", "i)Gomi"],
     "tiger",     ["", 0, "Tiger Raid", "i)Tiger"],
     "dual",      ["", 0, "Dual Wielder Raid", "i)Wielder"],
-    "monke",     ["", 0, "Monke Raid", "i)Monke"])
+    "monke",     ["", 0, "Monke Raid", "i)Monke"],
+    "cursed",    ["", 0, "Cursed Sage Raid", "i)Cursed|Sage"])
 ; dungeon (experimental): found in the Create list by name, like a raid without a picture
 DUNGEON := ["", 0, "Giant Dimension", "i)Giant"]
 ; Giant mode: leave for the raid this many seconds before createFrom (last run <= 52.4 s + LEAVE-to-Create <= 42 s)
 DIM_LEAD := 100
 #Include dungeon_giant.ahk               ; DUNGEON_ROUTE: the recorded run (built in), played by RunRoute()
 DIM_DIR := A_ScriptDir "\dimension\giant\"   ; the editable copy of the run: log.txt (Recorder format) + screenshots
-DimDir() => cfg["dimMethod"] = "2" ? A_ScriptDir "\dimension\giant2\" : DIM_DIR   ; Method 2 keeps its own recording
+; the dungeon being played: Extreme (own switch, wins over Dimension) or the one chosen on the Dimension page
+DimKind() => cfg["xdim"] = "1" ? "xdim" : InStr(" halloween death ", " " cfg["dimName"] " ") ? cfg["dimName"] : "giant"
+; recordings: Giant = dimension\giant, giant2..5; Halloween / Death the same with their own name; Extreme = dimension\extreme (one run)
+DimDir(kind := "") {
+    k := kind != "" ? kind : DimKind()
+    if k = "xdim"
+        return A_ScriptDir "\dimension\extreme\"
+    if k = "giant"
+        return cfg["dimMethod"] = "1" ? DIM_DIR : A_ScriptDir "\dimension\giant" cfg["dimMethod"] "\"
+    return A_ScriptDir "\dimension\" k (cfg["dimMethod"] = "1" ? "" : cfg["dimMethod"]) "\"
+}   ; Method 1 = giant, Method 2 / Slot 3-5 = giant2 / giant3-5: each keeps its own recording
 DIM_MOBS := [820, 260, 280, 170]         ; where the first group (3 orange giants) stands at the Giant Dimension spawn
 KNOCKBACK_RAIDS := " divine "            ; лише тут бос відкидає: пошук боса й поворот камери після смерті
 RAID_LIST     := [1040, 340, 220, 570]   ; стовпчик назв і кнопок Create in the list рейдів (x, y, w, h)
-RAID_CREATE_X := 1175                    ; x кнопки Create in the list
+RAID_CREATE_X := 1175                    ; x кнопки Create in the list (the Easy button of the Group Finder list covers it too)
+GF_TAB_DX     := 145                     ; Group Finder tab: centre is this far right of the Create tab centre
 ; loadout: рейд - 1, Infinity або dungeon - 2. Bag -> кнопка "Loadout N" угорі -> рядок списку. Поточний читаємо OCR з кнопки.
 BAG_BTN      := [1850, 700]              ; BAG праворуч (у лобі і в світі рейду)
 LOADOUT_BOX  := [880, 192, 230, 50]      ; кнопка "Loadout N ▼" у вікні Bag
@@ -155,6 +166,7 @@ dmgChanged := A_TickCount ; коли це число востаннє зміни
 lastSearch := 0          ; коли востаннє повертали камеру в пошуках боса
 farPress   := 0          ; Divine: коли спрацював скіл 1 чи 2 - за 2.5 с має з'явитись Combo, інакше бос далеко
 searchTurns := 0         ; скільки поворотів поспіль без влучань
+xdimStartAt := 0         ; Extreme Dimension: when Start was pressed (or the run was retried): the run starts xdimWait s later
 routeDone := false       ; dungeon: the recorded route of this run is already played
 dimRunAt := 0            ; when the recorded run of this dungeon started (0 - none waiting for RETRY)
 dimRetryAt := 0          ; when RETRY was pressed: the next ~15 s are the game reloading the run, not the lobby
@@ -194,6 +206,7 @@ afterRespawn := false    ; після респавну Combo ще не було 
 comboSeen  := false      ; у цьому рейді вже бачили напис "N Combo!" (значить, його розпізнавання працює)
 lastCombo  := 0          ; коли востаннє бачили "Combo!" (= удари влучають)
 lastComboCheck := 0
+problemNote := "", problemNoted := Map()                 ; ProblemWatch (below Stop): the same trouble again and again
 learnLeft  := 0          ; скільки ще навчальних знімків зробити в цьому рейді (raid.ini [raid] learnShots=1)
 lastLearn  := 0
 walkAt     := 0          ; коли після респавну йти вперед до боса (0 = не треба)
@@ -263,6 +276,10 @@ cfg := Map(
     "dimShift",   IniRead(INI, "raid", "dimShift", "0"),         ; Dimension: start delay, ms - wait this long after the enemies show up
     "dimFight",   IniRead(INI, "raid", "dimFight", "1"),         ; Dimension: normal fight after the run if enemies are left
     "dimMethod",  IniRead(INI, "raid", "dimMethod", "1"),        ; Dimension route: 1 = dimension\giant\log.txt, 2 = built-in route
+    "xdim",       IniRead(INI, "raid", "xdim", "0"),             ; Extreme Dimension on/off (0.3.5: only the switch and the 1-4 picker, no run yet)
+    "dimName",    IniRead(INI, "raid", "dimName", "giant"),      ; Dimension: giant / halloween / death (each keeps its own recordings)
+    "xdimWait",   IniRead(INI, "raid", "xdimWait", "15"),        ; Extreme Dimension: seconds to wait after Start before the run (the game loads the map)
+    "xdimPick",   IniRead(INI, "raid", "xdimPick", "1"),         ; Extreme Dimension: which of the 4 buttons
     "dungeon",    IniRead(INI, "raid", "dungeon", "1"),         ; Giant Dimension (Nightmare, Hardcore, Friends Only) instead of Infinity; experimental
     "speed",      IniRead(INI, "raid", "speed", "1"),          ; Speed Raid раз на 30 min (пріоритет: рейд > speed > Infinity)
     "seekAfter",  IniRead(INI, "raid", "seekAfter", "5000"),    ; скільки ms без влучань, щоб почати пошук
@@ -645,30 +662,49 @@ FlushRun() {
 ; Returns [{name, state: "ok"|"warn"|"fail", fix}]. "fail" = the bot cannot work like this; "warn" = may cause trouble.
 SetupChecks(deep := false) {
     r := []
-    Add := (name, state, fix := "") => r.Push({name: name, state: state, fix: fix})
+    Add := (name, state, fix := "", link := "") => r.Push({name: name, state: state, fix: fix, link: link})
+    if deep && !WinExist(GAME)                            ; 8.11: the full check needs the game open: say it first and stop there
+        return [{name: "Roblox is not running", state: "fail", fix: "Start Roblox and the game, wait in the lobby (the big PLAY button must be visible), then press Check again."}]
     if A_ScreenWidth = SCR_W && A_ScreenHeight = SCR_H
         Add("Screen resolution " A_ScreenWidth "x" A_ScreenHeight, "ok")
     else if A_ScreenWidth >= SCR_W && A_ScreenHeight >= SCR_H     ; 8.11: the bot is tuned on 1920x1080, other sizes are not tested
-        Add("Screen resolution " A_ScreenWidth "x" A_ScreenHeight " (the bot is tuned for 1920x1080)", "warn", "Should work, but screens may not be recognised. If so: Display settings > Display resolution: 1920 x 1080.")
+        Add("Screen resolution " A_ScreenWidth "x" A_ScreenHeight, "warn", "The bot is tuned for 1920x1080. Should work, but screens may not be recognised. If so: Display settings > Display resolution: 1920 x 1080.", "display")
     else
-        Add("Screen resolution is " A_ScreenWidth "x" A_ScreenHeight, "fail", "Right-click the desktop > Display settings > Display resolution: choose 1920 x 1080 or more.")
+        Add("Screen resolution is " A_ScreenWidth "x" A_ScreenHeight, "fail", "Right-click the desktop > Display settings > Display resolution: choose 1920 x 1080 or more.", "display")
     MonitorGetWorkArea(MonitorGetPrimary(), &wl, &wt, &wr, &wb)
     cover := 23 + GAME_H - wb                             ; px of the game hidden under a bottom taskbar (scale > 100% on a 1080p screen)
     ; the taskbar decides, not A_ScreenDPI: it is fixed at sign-in, a scale changed inside the session is only seen in the work area
-    scale := ""
-    try scale := Round(DllCall("GetDpiForSystem", "uint") / 96 * 100) "%"
-    if cover <= 0 && scale = "100%"
+    ; 8.11: the scale of the monitor the game is on, read now (a laptop with a docked monitor: the system DPI said 100%
+    ; while the screen was 125%, the bot found no buttons; 100% fixed it for that player)
+    dpiNow := 96
+    try dpiNow := DllCall("GetDpiForSystem", "uint")
+    try {
+        gh := WinExist(GAME)
+        hm := gh ? DllCall("MonitorFromWindow", "ptr", gh, "uint", 2, "ptr") : DllCall("MonitorFromPoint", "int64", 0, "uint", 1, "ptr")
+        if !DllCall("shcore\GetDpiForMonitor", "ptr", hm, "int", 0, "uint*", &mdx := 0, "uint*", &mdy := 0) && mdx
+            dpiNow := mdx                                 ; the monitor itself wins over the system value
+    }
+    scale := Round(dpiNow / 96 * 100) "%"
+    if scale = "100%"
         Add("Windows display scale " scale, "ok")
-    else if cover <= 0                                    ; 8.11: free game area, but only 100% is tested
-        Add("Windows display scale " scale " (the bot is tuned for 100%)", "warn", "Should work, but screens may not be recognised. If so: Display settings > Scale: 100%, then sign out and sign in again.")
-    else if cover <= 10                                   ; the r / x skill points are at y 1025: more cover hides them
-        Add("Windows display scale " scale ": the taskbar covers " cover " px of the game", "warn", "Should work. If screens are not recognised: Display settings > Scale: 100%, or auto-hide the taskbar.")
     else
-        Add("Windows display scale is " scale ": the taskbar covers " cover " px of the game", "fail", "Turn on 'Automatically hide the taskbar', or Display settings > Scale: choose 100%, then sign out and sign in again.")
-    if wl = 0 && wt = 0 && wr = A_ScreenWidth
+        Add("Windows display scale " scale, "warn", "The bot is tuned for 100%. Set Display settings > Scale to 100%, then sign out and sign in again: with another scale the bot may not find the buttons.", "display")
+    ; the taskbar row: a taskbar that hides itself pops up over the bottom of the game when the mouse touches it (ABM_GETSTATE, ABS_AUTOHIDE = 1)
+    hidden := false
+    try {
+        abd := Buffer(48, 0), NumPut("uint", 48, abd)
+        hidden := DllCall("shell32\SHAppBarMessage", "uint", 4, "ptr", abd, "uptr") & 1
+    }
+    if cover > 10                                         ; the r / x skill points are at y 1025: more cover hides them
+        Add("The taskbar covers " cover " px of the game", "fail", "Set Display settings > Scale to 100% (then sign out and sign in again), or turn on 'Automatically hide the taskbar'.", "display")
+    else if hidden
+        Add("Taskbar hides itself (auto-hide is on)", "warn", "It pops up over the game when the mouse touches the bottom edge and can swallow clicks. If the bot misses clicks: Taskbar settings > turn off 'Automatically hide the taskbar'.", "taskbar")
+    else if cover > 0
+        Add("The taskbar covers " cover " px of the game", "warn", "Should work. If screens are not recognised: Display settings > Scale: 100%, or auto-hide the taskbar.", "taskbar")
+    else if wl = 0 && wt = 0 && wr = A_ScreenWidth
         Add("Taskbar at the bottom", "ok")
     else
-        Add("Taskbar is not at the bottom", "warn", "Right-click the taskbar > Taskbar settings > Taskbar location on screen: Bottom.")
+        Add("Taskbar is not at the bottom", "warn", "Right-click the taskbar > Taskbar settings > Taskbar location on screen: Bottom.", "taskbar")
     if FileExist(A_ScriptDir "\ocr.ps1") && FileExist(IMGDIR "start.png")
         Add("Bot files (ocr.ps1, img folder)", "ok")
     else
@@ -682,9 +718,9 @@ SetupChecks(deep := false) {
         if text != "" && !InStr(text, "ERROR")
             Add("Text recognition (OCR) works", "ok")
         else if text = ""
-            Add("Text recognition (OCR) gave no result", "warn", "Settings > Time & Language > Language & region: add English (United States), restart the PC. If it still fails, run PowerShell as administrator: Add-WindowsCapability -Online -Name Language.OCR~~~en-US~0.0.1.0")
+            Add("Text recognition (OCR) gave no result", "warn", "Add English (United States) in Language & region, restart. Still failing: PowerShell as administrator: Add-WindowsCapability -Online -Name Language.OCR~~~en-US~0.0.1.0", "regionlanguage")
         else
-            Add("Text recognition (OCR) failed", "fail", "Settings > Time & Language > Language & region: add English (United States), restart the PC. If it still fails, run PowerShell as administrator: Add-WindowsCapability -Online -Name Language.OCR~~~en-US~0.0.1.0")
+            Add("Text recognition (OCR) failed", "fail", "Add English (United States) in Language & region, restart. Still failing: PowerShell as administrator: Add-WindowsCapability -Online -Name Language.OCR~~~en-US~0.0.1.0", "regionlanguage")
     }
     if hwnd := WinExist(GAME) {
         WinGetClientPos &cx, &cy, &cw, &ch, GAME
@@ -714,6 +750,23 @@ SetupChecks(deep := false) {
             Add("Keyboard layout in Roblox is English", "ok")
         else
             Add("Roblox keyboard layout is " Format("{:04X}", hkl), "warn", "Click inside Roblox, press Win+Space until the language shows ENG, then press Check again.")
+        if deep {                                         ; 8.11: does the bot really see the game? (the lobby: PLAY button, or the BAG text)
+            WinActivate GAME
+            try g.Hide()                                  ; the bot window must not cover the game while it looks
+            Sleep 600
+            seen := SeePlay(&px, &py)
+            if !seen {
+                Sleep 800
+                seen := SeePlay(&px, &py)
+            }
+            try g.Show("NA")
+            if seen
+                Add("The bot sees the game (PLAY button found)", "ok")
+            else {
+                Screenshot("setup_nomatch")
+                Add("The bot cannot see the game screen", "fail", "Stand in the lobby, close game windows (Esc), Check again. Still failing: Scale 100%, hide the taskbar, lowest graphics, Send report.")
+            }
+        }
     } else
         Add("Roblox is not running", "fail", "Start Roblox and open the game, wait in the lobby, then press Check again (the full check needs the game open).")
     return r
@@ -727,8 +780,11 @@ StartupChecks() {
 }
 
 Start() {
-    global running, fightSince, infDrop, curLoadout, loadoutChecked, dimRunAt, dimRetryAt, routeDone, dimHandled, pickFails, pickFailHour, pickMissAt, retryPending
+    global running, fightSince, infDrop, curLoadout, loadoutChecked, dimRunAt, dimRetryAt, routeDone, dimHandled, pickFails, pickFailHour, pickMissAt, retryPending, xdimStartAt
+    global problemNote, problemNoted
+    problemNote := "", problemNoted := Map()
     pickFails := 0, pickFailHour := "", pickMissAt := 0
+    xdimStartAt := 0
     dimRunAt := 0, dimRetryAt := 0, routeDone := false, dimHandled := false, retryPending := false   ; 3.11 23:56: a run stopped by F2 left the 2 min timer on - Roblox restart at once on the next start
     if !setupDone {
         Log("Run the Setup check first (press Check in the window)")
@@ -769,8 +825,45 @@ Stop(showSummary := true) {
     PaintRun()
     SetStatus("stopped")
     Layout()
-    if was && showSummary                                 ; not after F3 / an error stop
+    if was && showSummary {                               ; not after F3 / an error stop
         SummaryShow()
+        if problemNote != ""
+            ProblemShow()                                 ; the same trouble again and again: the Setup check opens
+    }
+}
+
+; 8.11: the same trouble again and again is a problem the player should see: it is logged once with a screenshot, and
+; after Stop the Setup check opens with a yellow plate (ProblemShow in ui.ahk)
+ProblemWatch(text) {
+    global problemNote, problemNoted
+    if !IsSet(problemNoted)                               ; a log line during start-up, before the globals exist
+        return
+    static pats := [["loadout", "i)loadout is not yet|loadout \d failed|Bag did not open", 4, "The bot cannot set the loadout: the Bag does not open or the loadout does not change."]
+        , ["menu", "i)modes menu: (SPEED RAID|DIMENSION) not visible", 3, "The bot does not find the mode buttons in the PLAY menu."]
+        , ["screen", "i)screen not recognised for|screen not recognised, clicking", 2, "The bot does not recognise the game screen."]]
+    static hits := Map(), busy := false
+    if busy
+        return
+    if RegExMatch(text, "loadout \d ✓")
+        hits["loadout"] := []
+    for p in pats {
+        if !RegExMatch(text, p[2])
+            continue
+        list := hits.Get(p[1], [])
+        list.Push(A_TickCount)
+        while list.Length && A_TickCount - list[1] > 900000
+            list.RemoveAt(1)
+        hits[p[1]] := list
+        if list.Length >= p[3] && !problemNoted.Has(p[1]) {
+            problemNoted[p[1]] := true
+            problemNote := p[4]
+            busy := true
+            Log("PROBLEM: " p[4] " (the Setup check opens when you stop the bot)")
+            try Screenshot("problem_" p[1])
+            busy := false
+        }
+        break
+    }
 }
 
 ; відпускаємо клавіші руху (на випадок зупинки посеред патруля чи повороту)
@@ -881,6 +974,7 @@ Log(text) {
         }
         day := today
     }
+    ProblemWatch(text)
     UiLogPush(text)
     try FileAppend FormatTime(, "dd.MM HH:mm:ss") "." Format("{:03}", A_MSec) "  " text "`n", LOGFILE, "UTF-8"
 }
@@ -956,7 +1050,7 @@ SecOfHour() {
 
 ; Second of the hour when the bot leaves Infinity / Giant for the raid
 StopSec() {
-    return cfg["dungeon"] = "1" ? MinSec(cfg["createFrom"], 59 * 60 + 30) - DIM_LEAD : MinSec(cfg["infStop"], 57 * 60 + 30)
+    return MinSec(cfg["infStop"], 57 * 60 + 30)           ; LEAVE AT: the same for every mode
 }
 
 ; Куди зараз треба (пріоритет: рейд > Speed Raid > Infinity):
@@ -999,7 +1093,7 @@ PickTarget(&why) {
     speedWhy := cfg["speed"] != "1" ? "Speed Raid is off"
         : speedDue && DateDiff(A_Now, speedDue, "Seconds") < 0 ? "next Speed Raid at " FormatTime(speedDue, "HH:mm")
         : "Speed Raid is not started after minute " SPEED_LAST_MIN " while the raid is on"
-    if cfg["dungeon"] = "1" {
+    if cfg["dungeon"] = "1" || cfg["xdim"] = "1" {
         why := speedWhy
         return "dungeon"
     }
@@ -1125,7 +1219,7 @@ Step() {
     ; і навіть коли ENEMIES LEFT "видно" (тьмяний HUD під екраном результатів): інакше Esc-R-Enter виходу на рейд
     ; тисне Enter = RETRY (29.10 21:57: після LEAVE новий забіг, 12 min у Infinity і пропущений рейд 22:00)
     ; no RETRY 2 min after the run started (a run takes ~47 s to the results): stuck somewhere - join again
-    if lastEntered = "dungeon" && dimRunAt && A_TickCount - dimRunAt > 120000 {
+    if lastEntered = "dungeon" && dimRunAt && A_TickCount - dimRunAt > (DimKind() = "xdim" ? 600000 : 120000) {
         dimRunAt := 0
         Screenshot("dim_noretry")
         RestartRoblox("Dimension: no RETRY 2 min after the run started", , 60000)
@@ -1138,7 +1232,7 @@ Step() {
         return
     ; dungeon: the first fight frame starts the recorded route (blocks until it is played); after it the normal fight
     ; goes on if anything is left. Every results screen re-arms it, so a retried run (by the bot or the game) walks again
-    if inFight && lastEntered = "dungeon" && !routeDone {
+    if (xdimStartAt || DimKind() != "xdim" && inFight) && lastEntered = "dungeon" && !routeDone {   ; Extreme / a replayed Halloween-Death run: the timer, not the HUD
         routeDone := true, dimRunAt := A_TickCount, dimHandled := false
         RunRoute(DimRoute())
         return
@@ -1510,6 +1604,13 @@ Step() {
     ; списки данжів і рейдів. Після оновлення Halloween Raid є і в списку данжів головного лобі,
     ; тож спершу обираємо те, що треба зараз, і лише потім вирішуємо, що робити з іншим
     rd := RAIDS.Has(cfg["raidName"]) ? RAIDS[cfg["raidName"]] : RAIDS["halloween"]   ; обраний рейд
+    if goal = "raid" && FindImg("create_tab.png", &gx, &gy) {             ; the Join/Create window: raids go through Group Finder
+        if EnterRaidGF(rd, gx, gy) {
+            SetEntered("raid")
+            friendsDone := false
+        }
+        return
+    }
     hasRaid := rd[1] != "" && FindImg(rd[1], &rx, &ry)
     hasHal := hasRaid || FindImg("halloween.png", &hx, &hy)               ; Halloween є в усіх списках рейдів
     hasInf := FindImg("infinite.png", &ix, &iy)
@@ -1530,7 +1631,7 @@ Step() {
         }
         return
     }
-    if hasInf && goal = "dungeon" {                                       ; dungeon list: find Giant Dimension by name
+    if hasInf && goal = "dungeon" && DimKind() != "xdim" {                                       ; dungeon list: find Giant Dimension by name
         if PickDungeon() {
             SetEntered("dungeon")
             friendsDone := false
@@ -1585,7 +1686,7 @@ Step() {
             friendsDone := false
             Sleep 1500
         }
-        if goal = "dungeon" && PickDungeon() {
+        if goal = "dungeon" && DimKind() != "xdim" && PickDungeon() {
             SetEntered("dungeon")
             friendsDone := false
             Sleep 1500
@@ -1601,6 +1702,10 @@ Step() {
     if (goal = "infinity" || goal = "dungeon") && FindImg("dimension.png", &x, &y, 260, 880, 620, 990) {   ; меню режимів: у данжі (лише білі літери DIMENSION)
         if MenuLoadoutWrong(2)
             return
+        if goal = "dungeon" && DimKind() = "xdim" {
+            EnterExtreme()
+            return
+        }
         SetStatus("entering Dimension")
         ClickImg("dimension.png", x, y)
         ParkMouse()
@@ -1712,7 +1817,7 @@ Step() {
 ; на "Teleporting in 0"). Шаблон перевірено на 3310 кадрах: збіги лише на екранах результатів.
 ; 3 натискання не допомогли - перезапуск гри
 LeaveInfinity() {
-    global lastReset, lastFight, routeDone, dimRetryAt, dimRunAt, dimHandled
+    global lastReset, lastFight, routeDone, dimRetryAt, dimRunAt, dimHandled, xdimStartAt
     static leaveAt := 0, leaveN := 0, resSeen := false
     if !FindImg("leave.png", &x, &y, 1000, 680, 1450, 840) && !FindImg("leave.png", &x, &y, 1000, 680, 1450, 840, "*110 *TransFF00FF") {
         ; the button is translucent, so its colour depends on the scene behind (3.11: the template missed it and the game's
@@ -1766,7 +1871,7 @@ LeaveInfinity() {
         }
         if lastEntered = "dungeon" && Target() = "dungeon" {
             SetStatus("Dimension results: pressing RETRY")
-            routeDone := false, dimRetryAt := A_TickCount
+            routeDone := false, dimRetryAt := A_TickCount, xdimStartAt := DimKind() != "giant" ? A_TickCount : 0
             if first
                 Stat("dimRuns")
             ClickXY(x + 90 - 593, y + 24)
@@ -2057,7 +2162,7 @@ PartyBonus() {
 
 ; Рейд без еталона: шукаємо його назву в списку рейдів (OCR), гортаючи колесом від початку,
 ; і тиснемо Create під назвою. true - натиснули.
-PickRaidByName(rd, isRaid := true) {
+PickRaidByName(rd, isRaid := true, btn := "i)reate") {
     global raidDoneKey, pickFails, pickFailHour, pickMissAt
     b := RAID_LIST
     SetStatus("looking for " rd[3] " in the list")
@@ -2075,7 +2180,7 @@ PickRaidByName(rd, isRaid := true) {
             all .= ln[1] ":" ln[2] "|"                   ; with y: small steps may show the same rows, only shifted
             if !titleY && RegExMatch(ln[2], rd[4])
                 titleY := ln[1]
-            else if titleY && InStr(ln[2], "reate") && ln[1] > titleY && ln[1] - titleY < 130 {
+            else if titleY && RegExMatch(ln[2], btn) && ln[1] > titleY && ln[1] - titleY < 130 {
                 SetStatus("selecting " rd[3])
                 ClickXY(RAID_CREATE_X, b[2] + ln[1])
                 ParkMouse()
@@ -2116,6 +2221,39 @@ PickRaidByName(rd, isRaid := true) {
     return false
 }
 
+; Raid entry through Group Finder (7.11): open its tab, find the raid by name, press Easy - the bot queues and the game
+; teleports into the raid when it opens. While queued the window is not touched (a second click would leave the queue).
+EnterRaidGF(rd, x, y) {
+    static queuedAt := 0, chkAt := 0, shown := true
+    ; after Easy a banner hangs at the top ("Raid opens in 0:17", CANCEL, 7.11 13:59): it is the proof of the queue.
+    ; Gone for 15+ s after the click (cancelled, or the raid failed) - queue again.
+    if queuedAt {
+        if A_TickCount - chkAt > 1500 {
+            chkAt := A_TickCount
+            shown := RegExMatch(OcrRegion([810, 90, 300, 70]), "i)opens|cancel|Time")
+        }
+        ; 7.11 17:03: the banner is also gone when the raid opens (teleport starts) - the bot then scrolled the list with the
+        ; mouse wheel in the loading raid = camera zoomed in. So wait 90 s after the click before queueing again.
+        if shown || A_TickCount - queuedAt < 90000 {
+            SetStatus("Group Finder: queued, waiting for the raid")
+            return false
+        }
+        Log("  Group Finder: the queue banner is gone - queueing again")
+        queuedAt := 0
+    }
+    SetStatus("Group Finder tab")
+    size := PngSize(IMGDIR "create_tab.png")
+    ClickXY(x + size[1] // 2 + GF_TAB_DX, y + size[2] // 2)
+    ParkMouse()
+    Sleep 2000                                            ; the list loads
+    if PickRaidByName(rd, true, "i)Eas|Ea.y|E.sy") {
+        queuedAt := A_TickCount
+        Log("  Group Finder: queued for " rd[3])
+        return true
+    }
+    return false
+}
+
 ; Infinite Mode in the Create list by name; after a miss, waits a minute before searching again
 PickInfinity() {
     static retryAt := 0
@@ -2127,12 +2265,18 @@ PickInfinity() {
     return false
 }
 
-; Giant Dimension in the Create list; after a miss, waits a minute before searching again
+; the card of the chosen dungeon in the Create list: the name read by OCR (Halloween raid cards are told apart by "Dim")
+DungeonRd() {
+    k := DimKind()
+    return k = "halloween" ? ["", 0, "Halloween Dimension", "i)Halloween\s*Dim"] : k = "death" ? ["", 0, "Death Dimension", "i)Death\s*Dim"] : DUNGEON
+}
+
+; the dungeon in the Create list; after a miss, waits a minute before searching again
 PickDungeon() {
     static retryAt := 0
     if A_TickCount < retryAt
         return false
-    if PickRaidByName(DUNGEON, false)
+    if PickRaidByName(DungeonRd(), false)
         return true
     retryAt := A_TickCount + 60000
     return false
@@ -2144,6 +2288,7 @@ PickDungeon() {
 DungeonSetup(x, y) {
     static fails := 0
     box := [x - 29, y - 493, 200, 160]
+    hcNeed := DimKind() != "halloween"                        ; the Halloween Hardcore button cannot be pressed: never click it
     Loop 3 {
         SetStatus("dungeon: Nightmare, Hardcore, Friends Only")
         if !InStr(OcrRegion(box), "ightmare") {
@@ -2160,7 +2305,7 @@ DungeonSetup(x, y) {
             ParkMouse()
             Sleep 600
         }
-        if !ToggleGreen(x - 122, y - 58) {                   ; Hardcore
+        if hcNeed && !ToggleGreen(x - 122, y - 58) {         ; Hardcore
             ClickXY(x - 92, y - 58)
             ParkMouse()
             Sleep 500
@@ -2170,7 +2315,7 @@ DungeonSetup(x, y) {
             ParkMouse()
             Sleep 500
         }
-        nm := InStr(OcrRegion(box), "ightmare"), hc := ToggleGreen(x - 122, y - 58), fo := ToggleGreen(x - 122, y + 22)
+        nm := InStr(OcrRegion(box), "ightmare"), hc := !hcNeed || ToggleGreen(x - 122, y - 58), fo := ToggleGreen(x - 122, y + 22)
         if nm && hc && fo {
             Log("  dungeon options set: Nightmare, Hardcore, Friends Only")
             fails := 0
@@ -2194,16 +2339,39 @@ ToggleGreen(px, py) {
 ; as when it was recorded (not played if they are not seen in 20 s), every step shifted by dimShift ms. Each step is timed against the start with a 1 ms timer,
 ; so nothing adds up (Sleep alone is 15.6 ms coarse). SendInput: no key delay, exactly like the recording.
 RunRoute(route) {
+    global xdimStartAt, dimRetryAt
     shift := Num("dimShift", 0)
+    if !route.Length {
+        Log("  dungeon route not started: no recorded run for " DimKind() " (Edit the run on the Dimension page)")
+        xdimStartAt := 0
+        return
+    }
+    kind := DimKind()
     SetStatus("Dimension: waiting for the first enemies")
     t0 := A_TickCount
     ; orange things in the lobby or the modes menu are not the giants (3.11 20:36 the run started in the menu)
     h := ENEMIES_HOME
     seen := false, strong := 0
+    if kind = "xdim" || xdimStartAt {                     ; Extreme: the map is different every day - the run starts a set time after Start
+        wait := Num("xdimWait", 15) * 1000                ; 8.11: also after REPLAY in Extreme / Halloween / Death (the HUD start missed the replayed run)
+        xdimStartAt := xdimStartAt || A_TickCount
+        while running && A_TickCount - xdimStartAt < wait {
+            SetStatus((kind = "xdim" ? "Extreme" : kind) " Dimension: the run starts in " Ceil((wait - (A_TickCount - xdimStartAt)) / 1000) " s")
+            ; 8.11 13:18:24: right after REPLAY the reload showed PLAY and cancelled the run - not the lobby yet
+            if A_TickCount - dimRetryAt > 30000 && FindImg("play.png", &px, &py, 1500, 800, 1920, 1060) {
+                Log("  Extreme Dimension: lobby seen while waiting - run cancelled")
+                xdimStartAt := 0
+                return
+            }
+            Sleep 400
+        }
+        xdimStartAt := 0
+        seen := running
+    }
     while running && !seen && A_TickCount - t0 < 20000 {
         n := MobsCount()
-        hud := n >= 500 && FindImg("enemies_left.png", &px, &py, h[1] - 12, h[2] - 12, h[1] + 66, h[2] + 38, "*80 *TransFF00FF")
-        strong := n >= 800 ? strong + 1 : 0
+        hud := (n >= 500 || kind != "giant") && FindImg("enemies_left.png", &px, &py, h[1] - 12, h[2] - 12, h[1] + 66, h[2] + 38, "*80 *TransFF00FF")
+        strong := kind = "giant" && n >= 800 ? strong + 1 : 0
         ok := (hud || strong >= 3) && !FindImg("play.png", &px, &py, 1500, 800, 1920, 1060)
             && !FindImg("dimension.png", &px, &py, 260, 880, 620, 990)
         if ok && hud
@@ -2219,7 +2387,7 @@ RunRoute(route) {
         Screenshot("route_nostart")
         return
     }
-    Log("  dungeon route started (method " (cfg["dimMethod"] = "2" ? 2 : 1) ", " (route == DUNGEON_ROUTE ? "built-in" : "log.txt") ", " route.Length " steps)")
+    Log("  dungeon route started (method " cfg["dimMethod"] ", " (route == DUNGEON_ROUTE ? "built-in" : "log.txt") ", " route.Length " steps)")
     SetStatus("dungeon: playing the recorded route")
     DllCall("winmm\timeBeginPeriod", "uint", 1)
     t0 := A_TickCount, down := Map()
@@ -2231,6 +2399,23 @@ RunRoute(route) {
             break
         if st[2] = "mm" {
             DllCall("mouse_event", "uint", 1, "int", Integer(st[3]), "int", Integer(st[4]), "uint", 0, "ptr", 0)
+            continue
+        }
+        if InStr(" up dn ld lu rd ru ", " " st[2] " ") {      ; wheel and clicks from the Recorder: at x, y (3, 4); Roblox needs a mouse move first
+            if IsInteger(st[3]) && IsInteger(st[4]) {
+                MouseMove Integer(st[3]) + 6, Integer(st[4]) + 6, 0
+                Sleep 40
+                MouseMove Integer(st[3]), Integer(st[4]), 0
+                Sleep 60
+            }
+            switch st[2] {
+                case "up": Send "{WheelUp}"
+                case "dn": Send "{WheelDown}"
+                case "ld": Click "Left Down"
+                case "lu": Click "Left Up"
+                case "rd": Click "Right Down"
+                case "ru": Click "Right Up"
+            }
             continue
         }
         SendInput "{" st[3] (st[2] = "kd" ? " down}" : " up}")
@@ -2250,18 +2435,21 @@ RunRoute(route) {
 ; Steps: [ms from the start, "kd"/"ku", key code] or [ms, "mm", dx, dy]; "wait" rows of the Recorder only add time.
 ; dimMethod 2 = always the built-in route; 1 = log.txt (built-in with a warning when the file is missing).
 ; Row "kp" (key press, col 5 = hold ms) becomes kd at t and ku at t + hold; the route is then sorted by time (stable).
-DimRoute() {
+DimRoute(kind := "") {
     static at := "", route := 0, atMethod := "", warned := false
-    method := cfg["dimMethod"] = "2" ? "2" : "1"
-    file := DimDir() "log.txt"
-    if method = "2" && !FileExist(file)                   ; Method 2: own recording in dimension\giant2, else the built-in route
-        return DUNGEON_ROUTE
+    if kind = ""
+        kind := DimKind()
+    method := kind (InStr("12345", cfg["dimMethod"]) ? cfg["dimMethod"] : "1")
+    fb := kind = "giant" ? DUNGEON_ROUTE : []             ; the built-in walk is the Giant map only: elsewhere no recording = no run
+    file := DimDir(kind) "log.txt"
+    if kind = "giant" && cfg["dimMethod"] != "1" && !FileExist(file)   ; Slot 2-5: own recording in dimension\giant<N>, else the built-in route
+        return fb
     if !FileExist(file) {
         if !warned {
             warned := true
-            Log("  WARNING: Method 1 but dimension\giant\log.txt is missing - built-in route")
+            Log("  WARNING: " file " is missing - " (kind = "giant" ? "built-in route" : "no recorded run, normal fight"))
         }
-        return DUNGEON_ROUTE
+        return fb
     }
     warned := false
     t := FileGetTime(file)
@@ -2273,7 +2461,7 @@ DimRoute() {
         txt := ""
     for line in StrSplit(txt, "`n", "`r") {
         p := StrSplit(line, ",")
-        if p.Length < 3 || SubStr(line, 1, 1) = ";" || !(p[2] = "kd" || p[2] = "ku" || p[2] = "mm" || p[2] = "kp")
+        if p.Length < 3 || SubStr(line, 1, 1) = ";" || !(p[2] = "kd" || p[2] = "ku" || p[2] = "mm" || p[2] = "kp" || InStr(" up dn ld lu rd ru ", " " p[2] " "))
             continue
         if !IsNumber(Trim(p[1])) {                        ; one bad line is skipped, not the rest of the run
             Log("  WARNING: log.txt line skipped (bad time): " line)
@@ -2296,8 +2484,74 @@ DimRoute() {
         r[j + 1] := x
         i++
     }
-    at := t, atMethod := method, route := r.Length ? r : DUNGEON_ROUTE
+    at := t, atMethod := method, route := r.Length ? r : fb
     return route
+}
+
+; first line of the region whose text matches rx: its y on the screen, else 0
+OcrLineY(box, rx) {
+    for ln in OcrRegion(box, true)
+        if RegExMatch(ln[2], rx)
+            return box[2] + ln[1]
+    return 0
+}
+
+; Extreme Dimension from the modes menu: open its card, pick the difficulty (checked on the "Difficulty:" line, Start is never
+; pressed on "None"), press Start and play the recorded run xdimWait s later. Click spots are estimated from a 1920x1080
+; picture of the menu and window; the lines are found by OCR first, the estimates are the fallback.
+EnterExtreme() {
+    global xdimStartAt, routeDone, dimRunAt, dimHandled
+    static fails := 0
+    names := ["Easy", "Normal", "Nightmare", "Extreme"]
+    pick := Min(4, Max(1, Integer(cfg["xdimPick"]))), nm := names[pick], nm4 := SubStr(nm, 1, 4)
+    SetStatus("Extreme Dimension: " nm)
+    if !OcrLineY([1100, 270, 450, 100], "i)Select|Diffic") {         ; the window is not open yet: open the card
+        cy := OcrLineY([1250, 150, 600, 900], "i)EXTREME\s*DIM")
+        ClickXY(1416, cy ? cy - 45 : 722)
+        ParkMouse()
+        Sleep 1500
+    }
+    win := false
+    Loop 4 {
+        if OcrLineY([1100, 270, 450, 100], "i)Select|Diffic") {
+            win := true
+            break
+        }
+        Sleep 700
+    }
+    if !win {
+        Log("  Extreme Dimension: the difficulty window did not open")
+        if ++fails = 1
+            Screenshot("xdim_nowin")
+        return
+    }
+    ok := false
+    Loop 3 {
+        y := OcrLineY([1166, 340, 320, 330], "i)" nm4)
+        ClickXY(1323, y ? y : [395, 475, 556, 637][pick])
+        ParkMouse()
+        Sleep 600
+        txt := OcrRegion([1100, 690, 450, 90])
+        if RegExMatch(txt, "i)" nm4) && !RegExMatch(txt, "i)None") {
+            ok := true
+            break
+        }
+    }
+    if !ok {
+        Log("  Extreme Dimension: difficulty " nm " not set")
+        if ++fails = 1
+            Screenshot("xdim_diff")
+        return
+    }
+    fails := 0
+    sy := OcrLineY([1100, 780, 450, 100], "i)Star")
+    ClickXY(1323, sy ? sy : 836)
+    ParkMouse()
+    Log("  Extreme Dimension: " nm " started, the run begins in " Num("xdimWait", 15) " s")
+    SetEntered("dungeon")
+    routeDone := true, dimRunAt := A_TickCount, dimHandled := false
+    xdimStartAt := A_TickCount
+    RunRoute(DimRoute())
 }
 
 ; "TELEPORT" (big white word, middle of the screen) read every 2 s; seen for 10 s in a row -> restart Roblox
@@ -2326,7 +2580,7 @@ DimStuck() {
 ; here (the buttons are translucent over another scene), and Infinity's light-panel points fall on the reward cards.
 ; Click points from the results screen 3.11 (1920x1080): RETRY 757,795, LEAVE 1350,795.
 DimRetry() {
-    global routeDone, lastFight, lastReset, dimRetryAt, dimRunAt, dimHandled, retryPending
+    global routeDone, lastFight, lastReset, dimRetryAt, dimRunAt, dimHandled, retryPending, xdimStartAt
     static at := 0, pressAt := 0
     if A_TickCount - at < 300
         return false
@@ -2334,7 +2588,7 @@ DimRetry() {
     txt := OcrRegion([450, 730, 1150, 120])
     if !RegExMatch(txt, "i)retry") || !RegExMatch(txt, "i)leave") {
         if retryPending                                   ; the results are gone: RETRY worked, arm the route for the new run
-            retryPending := false, routeDone := false
+            retryPending := false, routeDone := false, xdimStartAt := DimKind() != "giant" ? A_TickCount : 0   ; Extreme / Halloween / Death: the wait starts again
         return false
     }
     lastFight := A_TickCount - FIGHT_STICKY                ; not a fight any more
@@ -2405,7 +2659,7 @@ ListWheel(dir, n, gap := 25) {
 }
 
 ; поточний loadout з кнопки "Loadout N" у відкритому Bag (0 - не прочитали: Bag не відкритий)
-ReadLoadout() => RegExMatch(OcrRegion(LOADOUT_BOX), "i)Load\w*\s*(\d)", &m) ? Integer(m[1]) : 0
+ReadLoadout() => RegExMatch(OcrRegion(LOADOUT_BOX), "i)Lo[au]?d\w*\s*(\d)", &m) ? Integer(m[1]) : 0
 
 ; Поставити loadout n (Bag -> список угорі -> рядок). Стан пам'ятаємо, тож Bag відкриваємо лише при зміні;
 ; якщо не вийшло - пауза (щоб не застрягти в лобі): Bag did not open (телепорт, вікно гри) - 1 min,
@@ -2518,8 +2772,8 @@ MenuLoadoutWrong(n) {
     ClickXY(MODES_CLOSE[1], MODES_CLOSE[2])
     ParkMouse()
     Sleep 800
-    ; the menu may have been a false match in a plain lobby (PLAY visible): then this branch would repeat forever and the
-    ; lobby branch with EnsureLoadout never gets its turn - set the loadout right here
+    ; 8.11 01:11-01:15: dimension.png matched in a plain lobby (no menu: PLAY visible), so this branch ran again and again and the
+    ; lobby branch with EnsureLoadout never got its turn. The lobby is visible now - set the loadout right here.
     if SeePlay(&px, &py)
         EnsureLoadout(n)
     return true
@@ -2878,12 +3132,12 @@ PlaceId() {
 ; Закрити Roblox і зайти в гру знову (протокол roblox://). Повертає true, якщо вікно гри з'явилось.
 ; mode: "auto" - спершу браузер, потім roblox://; "browser" / "proto" - лише цей спосіб (тест, без паузи 10 min)
 RestartRoblox(why, mode := "auto", gap := RESTART_GAP) {
-    global lastRestart, fightSince, portraitSig, walkAt, noGameSince, lastFight, dimRunAt, dimRetryAt, routeDone, retryPending
+    global lastRestart, fightSince, portraitSig, walkAt, noGameSince, lastFight, dimRunAt, dimRetryAt, routeDone, retryPending, xdimStartAt
     if mode = "auto" && A_TickCount - lastRestart < gap && lastRestart
         return false
     lastRestart := A_TickCount
     ; 05.11 18:58: the run watch (no RETRY 2 min) outlived the restart and restarted Roblox again while the raid loadout was being chosen
-    dimRunAt := 0, dimRetryAt := 0, routeDone := false, retryPending := false
+    dimRunAt := 0, dimRetryAt := 0, routeDone := false, retryPending := false, xdimStartAt := 0
     SetStatus("restarting Roblox: " why)
     Stat("restarts")
     Screenshot("restart")

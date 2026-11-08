@@ -4,7 +4,7 @@
 
 **Farming bot for Anime Dimensions Simulator (Roblox) that keeps going when Roblox itself fails.**
 
-![version](https://img.shields.io/badge/version-0.3.2-e5334b?style=for-the-badge)
+![version](https://img.shields.io/badge/version-0.3.5-e5334b?style=for-the-badge)
 ![windows](https://img.shields.io/badge/Windows-10%20%2F%2011-1f1f2e?style=for-the-badge&logo=windows)
 ![autohotkey](https://img.shields.io/badge/AutoHotkey-v2-1f1f2e?style=for-the-badge&logo=autohotkey)
 ![screen](https://img.shields.io/badge/screen-1920x1080-1f1f2e?style=for-the-badge)
@@ -15,7 +15,24 @@
 
 > Roblox disconnects, freezes on a teleport, loops a retry screen or just closes? AD/BOT was made for players for whom this happens **all the time**. It notices the problem, restarts the game, joins again and carries on, so your night run does not end at the first crash.
 
-## ✨ New in 0.3.1
+## ✨ New in 0.3.5
+
+| | |
+|---|---|
+| 🔥 **Extreme Dimension** | Enters from the lobby, picks Easy / Normal / Nightmare / Extreme, presses Start, waits **Wait after Start** (15 s, also after Replay) and plays your recording from `dimension\extreme`. **It ships empty: record your own run.** While it is on, the normal Dimension is off. Uses loadout 2. |
+| 🎃 **Halloween and Death Dimension** | New choices next to Giant. **No runs are included** - record your own with the Recorder. |
+| 🗿 **Giant Dimension slots** | Slot 1 = the run from before (`dimension\giant`), Slot 2 = the built-in run, **Slot 3 = a new run by the author** (`dimension\giant3`), Slots 4-5 = your own. |
+| ⚔️ **Raid picker and Group Finder** | Pick the raid from a list. The bot joins it through Group Finder and waits in the queue. |
+| ⏱️ **LEAVE AT** | In System: the minute and second of the hour when the bot leaves for the raid. |
+| 🩺 **Better Setup check** | Checks that Roblox runs first, then really looks for the PLAY button, reads the scale of the monitor the game is on, warns about a self-hiding taskbar. After **Stop**, a yellow plate tells what went wrong and how to fix it. |
+| 🌗 **Light theme** | Sun / moon switch at the top of the compact window. |
+
+> **Loadouts:** keep the original names in the Bag, as the game spells them - **Loudout 1** (raid), **Loudout 2** (Infinity, Dimension, Extreme), **Loudout 3** (Speed Raid). Do not rename them: the bot finds them by name.
+
+<div align="center"><img src="docs/compact_035.png" width="520" alt="0.3.5 compact window, dark and light theme"><br><sub>0.3.5: Extreme Dimension and slots, dark and light theme</sub></div>
+
+<details>
+<summary><b>New in 0.3.1</b></summary>
 
 | | |
 |---|---|
@@ -27,13 +44,18 @@
 | 🧭 **Smarter lobby check** | Lobby is also found by the **BAG** text when PLAY cannot be read (e.g. under the "Activate Windows" watermark). |
 | 🔗 **Private server links** | Old `privateServerLinkCode` links open straight in Roblox; a failed link falls back to the plain game start. |
 
+</details>
+
 ## 🩹 Recent fixes
 
+- **Recorder, + Wait row** - the Wait window opened behind the Recorder (it stays on top), so the button seemed to do nothing. It now opens on top; with no row selected the wait goes to the end.
 - **OCR help** - when text recognition fails, Setup check now also shows the Windows command that installs the English OCR (the Language & region page often does not offer it).
 - **Leaving Infinity** - the bot now looks for the results screen every 0.8 s instead of 2.5 s (also after a death), so it presses LEAVE before the game's own AUTO RETRY does.
 - **Setup check needs Roblox open** - Continue stays locked until Roblox is running, so the full check (window size, keyboard layout) really runs.
 - **Setup check** - now shows a yellow warning when the screen is not 1920x1080 or the Windows scale is not 100% (the bot is tuned for those; other values may work but are not tested).
 - **Stuck in the lobby ("loadout first ... closing the menu")** - on a bright lobby or map the bot could mistake the screen for the open modes menu, close it again and again, and never open the Bag. The looser button match from the last update is removed (it caused this), and the loadout is now set right after the menu is closed. If the buttons are not found on your PC, set the Windows scale to 100%.
+- **Loadout never changes (button reads "Loudout")** - in the game's Bag the loadout button is spelled "Loudout 3" (a typo in the game). The bot looked for "Loadout", never recognised the button, tried three times and stayed on loadout 1 for every mode. It now reads both spellings.
+- **Setup check, hidden taskbar** - a taskbar that hides itself is now a yellow warning on its own row (before it was green, and the text sat under the display scale). The scale row only talks about the scale.
 - **Gems not counted** - after a game update the gem and token card pictures no longer matched, so Dimension and Speed Raid gems stayed at 0. New pictures and a looser match.
 - **Restart through the browser** - after closing Roblox the bot now presses the big blue **Play** button on the game page first (the Roblox app stayed signed out when started without the browser and showed its sign-in page forever). **Join** on the Servers tab and `roblox://` are the backups.
 - **Loadout switch** - the modes menu could stay open after leaving a Dimension and cover the BAG button, so the loadout was never changed. The bot now closes the menu before retrying.
@@ -71,7 +93,7 @@
 - Roblox desktop app in a normal window (not F11). The bot sets the window size itself.
 - Roblox language **English**, English OCR language pack in Windows
 - Screen lock and screensaver off
-- Optional: lowest graphics; loadout 1 = raid, 2 = Infinity / Dimension, 3 = Speed Raid
+- Optional: lowest graphics; loadout 1 = raid, 2 = Infinity / Dimension, 3 = Speed Raid (keep the original loadout names)
 
 ## 🚀 How to start
 

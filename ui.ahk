@@ -5,7 +5,7 @@
 ; If a font is not installed, put its .ttf files into the fonts\ folder next to the script, else Segoe UI / Consolas is used.
 
 LOGO_T := 52, LOGO_S := LOGO_T / 100          ; logo tile size in px and its scale
-APP_VERSION := "0.3.2"                   ; shown under the title
+APP_VERSION := "0.3.5"                  ; shown under the title
 APP_AUTHOR  := "Samogub"                 ; shown next to the version
 
 ; ------------------------------ themes ------------------------------
@@ -20,7 +20,7 @@ THEMES := Map(
     "ember",    {lite: 0, ov: "FFFFFF", bg: "0D0806", card: "1A1210", field: "2B1D18", text: "F7ECE3", dim: "A58B7C", on: "FFB86B", off: "3D2A23", idle: "6E5347", acc: "EE7A3C", acc2: "B8365A", hi: "FFC48A"},
     "ironrose", {lite: 0, ov: "FFFFFF", bg: "060A11", card: "0F171F", field: "19262F", text: "E3EEF0", dim: "7E9BA2", on: "A6D8D8", off: "21313A", idle: "4B6670", acc: "5E8F9B", acc2: "24445A", hi: "AFD8DD"},
     "author",   {lite: 0, ov: "FFFFFF", bg: "08080A", card: "131316", field: "202024", text: "ECECEF", dim: "9A9AA2", on: "CFCFD8", off: "2E2E34", idle: "5E5E66", acc: "7B7D8A", acc2: "3E3F4A", hi: "E4E2EC"})
-RAIDS_READY := " divine "                   ; raids tested to work; the others are shown as "Coming soon"
+RAIDS_READY := " divine halloween shiro saiya sungomi tiger dual monke cursed "   ; raids that can be picked (Group Finder finds them by name)
 THEME_ORDER := ["cosmos", "sakura", "midnight", "aurora", "metallic", "ironrose", "ember", "author"]
 THEME_TITLES := Map("cosmos", "Cosmos", "author", "Graphite", "midnight", "Midnight Sakura", "metallic", "Metallic", "ironrose", "Iron Rose")          ; shown instead of the capitalised key
 
@@ -74,13 +74,14 @@ hoverId := ""
 lastStatus := ""                         ; last status text (SetStatus)
 setupDone := IniRead(INI, "setup", "done", "0") = "1"   ; the first-run Setup check must be passed once
 setupOpen := false                       ; the Setup check opened again from the menu
+setupBanner := "", setupBackSkin := ""   ; yellow plate (what went wrong while the bot ran) and the skin to go back to
 setupRan := false, setupRes := []        ; results of the last Check
 uiStatus := "stopped"
 uiLog := []                              ; last log lines shown in the bottom panel
 dRaid := "", dSpeed := "", dGoal := "", dDone := ""
 layoutMons := 0
 curPage := IniRead(INI, "ui", "page", "home")
-if !InStr(" home modes m_raid m_speed m_inf m_dim skills stats look ", " " curPage " ")
+if !InStr(" home modes m_raid m_speed m_inf m_dim m_xdim skills stats look ", " " curPage " ")
     curPage := "home"
 skin := IniRead(INI, "ui", "skin", "compact") = "compact" && setupDone ? "compact" : "full"   ; the Setup card exists only in the full skin
 cOpen := " " IniRead(INI, "ui", "cOpen", "") " "         ; open groups of the compact skin, space separated
@@ -223,7 +224,7 @@ UiCompute() {
     return dRaid "|" dSpeed "|" dGoal "|" dDone "|" uiStatus "|" running "|" curPage "|" hoverId "|" uiLog.Length
         . "|" (WinExist(GAME) != 0) "|" curLoadout "|" (running && A_TickCount - lastFight < FIGHT_STICKY)
         . "|" sess["raids"] "," sess["infRuns"] "," sess["raidGems"] "," sess["raidTokens"] "," runTokens "," sess["speedRuns"] "," sess["dimRuns"]
-        . "|" (curPage = "stats" ? A_Sec // 5 : "") "|" setupDone setupOpen setupRan setupRes.Length
+        . "|" (curPage = "stats" ? A_Sec // 5 : "") "|" setupDone setupOpen setupRan setupRes.Length StrLen(setupBanner)
         . (skin = "compact" ? "|" CInfLeft() : "")
 }
 
@@ -249,8 +250,29 @@ SetupReopen() {
     setupOpen := true, setupRan := false, setupRes := []
 }
 
+; 8.11: the bot hit the same trouble again and again (ProblemWatch): after the player stops it, the Setup check opens by itself,
+; runs, and a yellow plate says what went wrong
+ProblemShow() {
+    global problemNote, setupBanner, setupBackSkin
+    setupBanner := "While running: " problemNote, problemNote := ""
+    if skin != "full" {                                  ; the Setup card exists only in the full skin
+        setupBackSkin := skin
+        SetSkin("full")
+    }
+    SetupReopen()
+    UiRender(true)
+    SetTimer(SetupRun, -400)
+}
+
 SetupClose() {
-    global setupDone, setupOpen
+    global setupDone, setupOpen, setupBanner, setupBackSkin
+    setupBanner := ""
+    if setupBackSkin != "" {
+        s := setupBackSkin, setupBackSkin := ""
+        setupOpen := false
+        SetSkin(s)
+        return
+    }
     if !setupDone {
         setupDone := true
         IniWrite "1", INI, "setup", "done"
@@ -329,12 +351,31 @@ FlipKey(key) {
         }
 }
 
+; short raid name for chips and the compact picker
+RaidShort(k) => k = "saiya" ? "Saiya UI" : k = "shiro" ? "Infinity Shiro" : k = "divine" ? "Divine" : StrReplace(RAIDS[k][3], " Raid")
+
 PickRaid(key) {
     if cfg["raidName"] = key || !InStr(RAIDS_READY, " " key " ")
         return
     cfg["raidName"] := key
     IniWrite key, INI, "raid", "raidName"
     Log("setting raid = " RAIDS[key][3] " (applies at once)")
+}
+
+PickDimName(k) {
+    if cfg["dimName"] = k
+        return
+    cfg["dimName"] := k
+    IniWrite k, INI, "raid", "dimName"
+    Log("setting dimName = " k " (applies at once)")
+}
+
+PickXdim(n) {
+    if cfg["xdimPick"] = n
+        return
+    cfg["xdimPick"] := n
+    IniWrite n, INI, "raid", "xdimPick"
+    Log("setting xdimPick = " n)
 }
 
 PickDimMethod(m) {
@@ -425,7 +466,7 @@ GdipInit() {
     DllCall("gdiplus\GdiplusStartup", "ptr*", &token := 0, "ptr", si, "ptr", 0)   ; until the bot exits
 }
 
-Col(hex, a := 255) => (a << 24) | Integer("0x" hex)
+Col(hex, a := 255) => (a << 24) | Integer("0x" (tmap ? TCol(hex) : hex))   ; tmap: the compact light theme is being drawn
 
 Canvas(w, h, fill) {
     DllCall("gdiplus\GdipCreateBitmapFromScan0", "int", w, "int", h, "int", 0, "int", 0x26200A, "ptr", 0, "ptr*", &bmp := 0)
@@ -590,7 +631,12 @@ TxW(text, role, px, bold) {
 }
 
 ; ------------------------------ widgets ------------------------------
-Btn(x, y, w, h, label, id, fn, primary := false, icon := "") {
+Btn(x, y, w, h, label, id, fn, primary := false, icon := "", off := false) {
+    if off {                                               ; locked: greyed out, no clicks
+        FillRR(x, y, w, h, 14, C.field, 110)
+        Tx(label, "ui", 14, 1, C.idle, x, y, w, h, 1, 170)
+        return
+    }
     hot := IsHot(id)
     if primary
         GradRR(x, y, w, h, 14, C.acc, 255, C.acc2, 255)
@@ -611,7 +657,11 @@ Btn(x, y, w, h, label, id, fn, primary := false, icon := "") {
     Hit(x, y, w, h, id, fn)
 }
 
-Chip(x, y, w, h, label, on, id, fn) {
+Chip(x, y, w, h, label, on, id, fn, off := false) {
+    if off {                                               ; locked: greyed out, no clicks
+        ChipOff(x, y, w, h, label)
+        return
+    }
     if on {
         GradRR(x, y, w, h, 12, C.acc, 255, C.acc2, 255)
         StrokeRR(x, y, w, h, 12, C.hi, 170)
@@ -703,6 +753,7 @@ UiRender(force := false) {
         case "m_speed": PageSpeed()
         case "m_inf":   PageInfinity()
         case "m_dim":   PageDimension()
+        case "m_xdim":  PageXdim()
         case "skills": PageSkills()
         case "stats":  PageStats()
         case "look":   PageLook()
@@ -874,6 +925,13 @@ DrawSidebar() {
         Hit(26, y, 170, 44, id, it[1] = "setup" ? SetupReopen : SetPage.Bind(it[1]))
         y += 52
     }
+    ; LEAVE AT works for every mode, so it lives here (1.5 under Setup check)
+    Tx("Leave for the raid at", "ui", 12, 0, C.dim, 30, y + 6, 160, 18)
+    sec := MinSec(cfg["infStop"], 57 * 60 + 30)
+    Chip(30, y + 28, 32, 28, "-", false, "dn_infStop", StepTime.Bind("infStop", -30, 600, 3480, 57 * 60 + 30))
+    Tx(Format("{:02}:{:02}", sec // 60, Mod(sec, 60)), "mono", 13, 1, C.text, 66, y + 26, 84, 32, 1)
+    Chip(154, y + 28, 32, 28, "+", false, "up_infStop", StepTime.Bind("infStop", 30, 600, 3480, 57 * 60 + 30))
+    TxP("Works for all modes", "ui", 11, C.dim, 30, y + 62, 160, 18)
     Btn(28, GH - 16 - 12 - 50 - 10 - 40, 166, 40, "Private server", "join", JoinPrivateServer, false, Chr(0xE774))
     Btn(28, GH - 16 - 12 - 50, 166, 50, running ? "Stop" : "Start", "run", ToggleRun, !running, Chr(running ? 0xE71A : 0xE768))
 }
@@ -900,6 +958,10 @@ DrawLogPanel() {
         Tx("Nothing yet. Press Start or F1.", "mono", 12, 0, C.idle, CX + 20, y + 40, CWD - 40, 17)
 }
 
+OpenSettings(page, *) {
+    try Run("ms-settings:" page)
+}
+
 ; First-run Setup check: a card over the whole window. Until it is passed once, nothing under it can be clicked.
 DrawSetup() {
     global hits
@@ -913,7 +975,12 @@ DrawSetup() {
     FillRR(x, y, w, h, 20, C.bg, 255)                     ; opaque base, so nothing shows through the glass
     Glass(x, y, w, h, 20)
     Tx(setupDone ? "Setup check" : "Welcome - check your setup first", "title", 22, 1, C.text, x + 28, y + 20, w - 56, 32)
-    Tx("Press Check. The bot tests what it can on this PC and tells you how to fix the rest.", "ui", 13, 0, C.dim, x + 28, y + 56, w - 56, 20)
+    if setupBanner != "" {
+        FillRR(x + 28, y + 50, w - 56, 38, 10, "F5B942", 45)
+        Tx(Chr(0xE7BA), "icon", 14, 0, "F5B942", x + 38, y + 58, 22, 22, 1)
+        Tx(setupBanner, "ui", 12, 1, "F5B942", x + 66, y + 59, w - 110, 22)
+    } else
+        Tx("Press Check. The bot tests what it can on this PC and tells you how to fix the rest.", "ui", 13, 0, C.dim, x + 28, y + 56, w - 56, 20)
     Caption("Automatic checks", x + 28, y + 96)
     Caption("Set these in the game yourself", x + 490, y + 96, 300)
     ry := y + 122
@@ -923,10 +990,15 @@ DrawSetup() {
         col := it.state = "ok" ? "3DD68C" : it.state = "warn" ? "F5B942" : "F2555A"
         Dot(x + 28, ry + 2, 24, col)
         Tx(Chr(it.state = "ok" ? 0xE73E : it.state = "warn" ? 0xE7BA : 0xE711), "icon", 13, 0, "FFFFFF", x + 28, ry + 2, 24, 24, 1)
-        Tx(it.name, "ui", 14, 1, C.text, x + 64, ry, 400, 22)
+        nameY := ry
+        Tx(it.name, "ui", 14, 1, C.text, x + 64, ry, 320, 22)
+        fh := it.fix != "" ? Ceil(StrLen(it.fix) / 68) * 14 : 0         ; 8.11: rows are compact, the list has up to 9 lines
         if it.fix != ""
-            TxP(it.fix, "ui", 11, C.dim, x + 64, ry + 22, 410, Max(32, Ceil(StrLen(it.fix) / 62) * 15))   ; wraps (the OCR fix has 3 lines)
-        ry += it.fix != "" ? 28 + Max(32, Ceil(StrLen(it.fix) / 62) * 15) : 40
+            TxP(it.fix, "ui", 11, C.dim, x + 64, ry + 22, 410, fh)
+        ry += it.fix != "" ? 28 + fh : 32
+        if it.HasProp("link") && it.link != "" && it.state != "ok" {      ; opens the right Windows settings page; the bot changes nothing itself
+            Btn(x + 384, nameY - 2, 90, 24, "Settings", "setup_link_" it.link, OpenSettings.Bind(it.link), false, Chr(0xE713))
+        }
     }
     tips := ["Graphics quality: set it to the lowest (Esc > Settings in Roblox).",
              "Turn off visual effects and extra animations in the game settings: they hide the colours the bot reads.",
@@ -944,8 +1016,8 @@ DrawSetup() {
     Btn(x + 28, by, 200, 44, setupRan ? "Check again" : "Check now", "setup_check", SetupRun, !setupRan, Chr(0xE9D9))
     fails := SetupFails()
     ok := setupDone || setupRan && !fails
-    msg := !setupRan ? "Press Check to continue." : fails ? fails " problem" (fails > 1 ? "s" : "") " to fix, then Check again." : "All good."
-    Tx(msg, "ui", 13, 1, setupRan && !fails ? "3DD68C" : C.dim, x + 250, by, 330, 44)
+    msg := !setupRan ? "Press Check to continue." : fails ? fails " problem" (fails > 1 ? "s" : "") " - the bot will not work until they are fixed. Then Check again." : "All good."
+    TxP(msg, "ui", 13, setupRan && !fails ? "3DD68C" : C.dim, x + 250, by + 4, 330, 40)
     if ok
         Btn(x + w - 228, by, 200, 44, setupDone ? "Close" : "Continue", "setup_go", SetupClose, setupRan)
     else {
@@ -1110,10 +1182,12 @@ PageModes() {
     cw2 := (CWD - 12) // 2, ch := (CHT - 24) // 3
     cards := [["Raid", "Enters the raid at the start of every hour. Choose the raid and how the fight is played.", "raid", "m_raid"],
               ["Speed Raid", "Every 30 min with the lowest unused character. Needs loadout 3 if loadouts are on.", "speed", "m_speed"],
-              cfg["dungeon"] = "1" ? ["Infinity", "Off while Dimension is on: Dimension takes its place and loadout 2.", "", "m_inf", "Settings", "Off: Dimension on"]
+              cfg["dungeon"] = "1" || cfg["xdim"] = "1" ? ["Infinity", "Off while Dimension is on: Dimension takes its place and loadout 2.", "", "m_inf", "Settings", "Off: Dimension on"]
                  : ["Infinity", "Farms waves while the raid is closed. Choose how the character fights.", "infinity", "m_inf"],
               ["Loadouts", "Switches the Bag loadout: raid 1, Infinity or Dimension 2, Speed Raid 3. Set your loadouts first.", "loadouts", ""],
-              ["Dimension", "Giant Dimension (Nightmare, Hardcore, Friends Only) with the author's recorded run, instead of Infinity. Loadout 2.", "dungeon", "m_dim"]]
+              cfg["xdim"] = "1" ? ["Dimension", "Off while Extreme Dimension is on: Extreme takes its place.", "", "m_dim", "Settings", "Off: Extreme on"]
+                 : ["Dimension", "Dimension (Nightmare, Hardcore, Friends Only) with the author's recorded run, instead of Infinity. Loadout 2.", "dungeon", "m_dim"],
+              ["Extreme Dimension", "Pick a difficulty and record one run: the bot enters it and plays your recording. Replaces Dimension.", "xdim", "m_xdim"]]
     for i, mc in cards {   ; not "c": it would shadow the global theme object C
         col := Mod(i - 1, 2), row := (i - 1) // 2
         ModeCard(CX + col * (cw2 + 12), CY + row * (ch + 12), cw2, ch, mc[1], mc[2], mc[3], mc[4], mc[4] = "skills" ? "Open" : "Settings", mc.Length > 5 ? mc[6] : false)
@@ -1123,17 +1197,16 @@ PageModes() {
 PageRaid() {
     BackBar("Raid", "Every hour, from createFrom (59:30) until the raid starts")
     py := CY + 46
-    Panel(CX, py, CWD, 82, "Raid to create")
-    cw3 := (CWD - 40 - 2 * 12) // 3, soon := ""
+    ph := 114
+    Panel(CX, py, CWD, ph, "Raid to enter (Group Finder)")
+    cols := 5, cw5 := (CWD - 40 - (cols - 1) * 8) // cols, i := 0
     for k, v in RAIDS {
         if InStr(RAIDS_READY, " " k " ")
-            Chip(CX + 20, py + 40, cw3, 29, StrReplace(v[3], " Raid"), cfg["raidName"] = k, "raid_" k, PickRaid.Bind(k))
-        else
-            soon .= (soon = "" ? "" : ", ") StrReplace(v[3], " Raid")
+            Chip(CX + 20 + Mod(i, cols) * (cw5 + 8), py + 40 + (i // cols) * 36, cw5, 29, RaidShort(k), cfg["raidName"] = k, "raid_" k, PickRaid.Bind(k))
+        i++
     }
-    TxP("Coming soon: " soon, "ui", 11, C.idle, CX + 20 + cw3 + 16, py + 38, CWD - 40 - cw3 - 16, 36)
-    py2 := py + 92
-    Panel(CX, py2, CWD, CHT - 46 - 92, "How the fight is played")
+    py2 := py + ph + 10
+    Panel(CX, py2, CWD, CHT - 46 - ph - 10, "How the fight is played")
     colw := (CWD - 40 - 24) // 2
     ToggleRow(CX + 20, py2 + 38, colw, "Solo mode (Friends Only)", "Nobody can join, so Start is pressed at once", "soloRaid")
     solo := cfg["soloRaid"] = "1"
@@ -1177,10 +1250,9 @@ PageInfinity() {
     ToggleRow(CX + 20, py + 130, colw, "Walk forward now and then", still ? lockTxt : "Short walks to find new enemies", "patrol", still)
     ToggleRow(CX + 20, py + 176, colw, "Game Auto", "The game's Auto fights, the bot keeps it on", "infGameAuto")
     rx := CX + 20 + colw + 24
-    TimeStepper(rx, py + 40, colw, "Leave Infinity at", "infStop", 30, 600, 3480, 57 * 60 + 30, "Author recommends 57:30")
-    Stepper(rx, py + 92, colw, "Pause between AOE", "spreadMs", 500, 1000, 20000, 1000, "s", 7000, "Author recommends 7 s", ga)
-    Stepper(rx, py + 144, colw, "Turn every", "turnMs", 500, 500, 10000, 1000, "s", 2500, "", still)
-    Stepper(rx, py + 190, colw, "Auto if enemies stuck", "infAuto", 5000, 0, 60000, 1000, "s", 15000, "AUTO for 5 s; 0 = off", ga)
+    Stepper(rx, py + 40, colw, "Pause between AOE", "spreadMs", 500, 1000, 20000, 1000, "s", 7000, "Author recommends 7 s", ga)
+    Stepper(rx, py + 92, colw, "Turn every", "turnMs", 500, 500, 10000, 1000, "s", 2500, "", still)
+    Stepper(rx, py + 144, colw, "Auto if enemies stuck", "infAuto", 5000, 0, 60000, 1000, "s", 15000, "AUTO for 5 s; 0 = off", ga)
     py2 := py + 242
     Panel(CX, py2, CWD, CHT - 46 - 242, "Big AOE skills")
     nk := SKILL_KEYS.Length
@@ -1194,21 +1266,27 @@ PageInfinity() {
 }
 
 PageDimension() {
-    BackBar("Dimension", "Giant Dimension: Nightmare, Hardcore, Friends Only")
+    BackBar("Dimension", "Nightmare, Hardcore, Friends Only")
     py := CY + 46, lw := (CWD - 12) // 2, rx := CX + lw + 12, colw := lw - 40
     Panel(CX, py, lw, CHT - 46, "Recorded run")
-    ToggleRow(CX + 20, py + 36, colw, "Dimension on", "Plays the recorded run instead of Infinity", "dungeon")
+    lk := cfg["xdim"] = "1"                                   ; Extreme on: the plain Dimension is greyed out
+    ToggleRow(CX + 20, py + 36, colw, "Dimension on", lk ? "Locked while Extreme Dimension is on" : "Plays the recorded run instead of Infinity", "dungeon", lk)
+    cwk := (colw - 16) // 3
+    for i, kn in [["giant", "Giant"], ["halloween", "Halloween"], ["death", "Death"]]
+        Chip(CX + 20 + (i - 1) * (cwk + 8), py + 84, cwk, 26, kn[2], DimKindUi() = kn[1], "dk_" kn[1], PickDimName.Bind(kn[1]), lk)
     cwm := (colw - 8) // 2
-    Chip(CX + 20, py + 92, cwm, 26, "Method 1", cfg["dimMethod"] != "2", "dm_1", PickDimMethod.Bind("1"))
-    Chip(CX + 20 + cwm + 8, py + 92, cwm, 26, "Method 2", cfg["dimMethod"] = "2", "dm_2", PickDimMethod.Bind("2"))
-    Stepper(CX + 20, py + 126, colw, "Start delay", "dimShift", 100, 0, 5000, 1000, "s", 0, "Wait this long before the run")
-    ToggleRow(CX + 20, py + 172, colw, "Keep fighting after the run", "Finishes enemies that are left", "dimFight")
-    rt := DimRoute(), last := rt.Length ? rt[rt.Length][1] : 0
-    TxP("Starts when enemies show up. Run: " rt.Length " steps, " Round(last / 1000, 1) " s. Same character and loadout as recorded.", "ui", 11, C.dim, CX + 20, py + 224, colw, 36)
+    Chip(CX + 20, py + 118, cwm, 26, "Slot 1", !InStr("2345", cfg["dimMethod"]), "dm_1", PickDimMethod.Bind("1"), lk)
+    Chip(CX + 20 + cwm + 8, py + 118, cwm, 26, "Slot 2", cfg["dimMethod"] = "2", "dm_2", PickDimMethod.Bind("2"), lk)
+    cws := (colw - 16) // 3                                   ; Slot 3 / 4 / 5: one recording of its own for each slot (dimension\giant3 ...)
+    for s in [3, 4, 5]
+        Chip(CX + 20 + (s - 3) * (cws + 8), py + 152, cws, 26, "Slot " s, cfg["dimMethod"] = s, "dm_" s, PickDimMethod.Bind(String(s)), lk)
+    Stepper(CX + 20, py + 186, colw, "Start delay", "dimShift", 100, 0, 5000, 1000, "s", 0, "Wait this long before the run", lk)
+    ToggleRow(CX + 20, py + 228, colw, "Keep fighting after the run", "Finishes enemies that are left", "dimFight", lk)
+    rt := DimRoute(DimKindUi()), last := rt.Length ? rt[rt.Length][1] : 0
+    TxP("Starts when enemies show up. Run: " rt.Length " steps, " Round(last / 1000, 1) " s. Same character and loadout as recorded.", "ui", 11, C.dim, CX + 20, py + 274, colw, 30)
     bw := (colw - 12) // 2
-    Btn(CX + 20, py + 262, bw, 36, "Edit the run", "dim_edit", DimEdit, false, Chr(0xE70F))
-    Btn(CX + 20 + bw + 12, py + 262, bw, 36, "Open folder", "dim_dir", (*) => OpenPath(DimDir()), false, Chr(0xE8B7))
-    TxP("Enemies late? Edit the run, pick a row, Wait +100 ms, Save.", "ui", 11, C.dim, CX + 20, py + 306, colw, 36)
+    Btn(CX + 20, py + 312, bw, 36, "Edit the run", "dim_edit", DimEdit, false, Chr(0xE70F), lk)
+    Btn(CX + 20 + bw + 12, py + 312, bw, 36, "Open folder", "dim_dir", (*) => OpenPath(DimDir(DimKindUi())), false, Chr(0xE8B7), lk)
     Panel(rx, py, lw, CHT - 46, "Character for this run")
     ic := IMGDIR DIM_CHAR.icon
     if FileExist(ic)
@@ -1229,6 +1307,23 @@ PageDimension() {
     TxP(DIM_CHAR.fruitText, "ui", 11, C.dim, rx + 108, fy + 26, lw - 128, 52)
 }
 
+DimKindUi() => InStr(" halloween death ", " " cfg["dimName"] " ") ? cfg["dimName"] : "giant"
+
+PageXdim() {
+    BackBar("Extreme Dimension", "Pick the difficulty, record one run, the bot plays it")
+    py := CY + 46, colw := CWD - 40
+    Panel(CX, py, CWD, 244, "Extreme Dimension")
+    ToggleRow(CX + 20, py + 36, colw, "Extreme Dimension on", "Replaces Dimension while on. Enters from the lobby, picks the difficulty, presses Start", "xdim")
+    lk := cfg["xdim"] != "1"                                  ; Extreme off: its settings are greyed out
+    cwx := (colw - 24) // 4
+    for n, nm in ["Easy", "Normal", "Nightmare", "Extreme"]
+        Chip(CX + 20 + (n - 1) * (cwx + 8), py + 100, cwx, 32, nm, cfg["xdimPick"] = n, "xd_" n, PickXdim.Bind(String(n)), lk)
+    Stepper(CX + 20, py + 150, colw, "Wait after Start", "xdimWait", 1, 5, 60, 1, "s", 15, "Seconds for the map to load before the run starts", lk)
+    bw := (colw - 12) // 2
+    Btn(CX + 20, py + 192, bw, 36, "Edit the run", "xd_edit", DimEditK.Bind("xdim"), false, Chr(0xE70F), lk)
+    Btn(CX + 20 + bw + 12, py + 192, bw, 36, "Open folder", "xd_dir", (*) => OpenPath(DimDir("xdim")), false, Chr(0xE8B7), lk)
+}
+
 ; PNG from a file, scaled into (x, y, w, h); loaded once
 DrawPng(file, x, y, w, h) {
     static cache := Map()
@@ -1240,9 +1335,10 @@ DrawPng(file, x, y, w, h) {
         DllCall("gdiplus\GdipDrawImageRectI", "ptr", gr, "ptr", cache[file], "int", x, "int", y, "int", w, "int", h)
 }
 
-DimEdit(*) {
-    DirCreate DimDir()
-    try Run '"' A_AhkPath '" "' A_ScriptDir '\tools\Recorder.ahk" "' RTrim(DimDir(), "\") '"'   ; no trailing \ before the quote (\" would escape it)
+DimEdit(*) => DimEditK(DimKindUi())
+DimEditK(k, *) {
+    DirCreate DimDir(k)
+    try Run '"' A_AhkPath '" "' A_ScriptDir '\tools\Recorder.ahk" "' RTrim(DimDir(k), "\") '"'   ; no trailing \ before the quote (\" would escape it)
     catch as e
         Log("Recorder did not start: " e.Message)
 }
