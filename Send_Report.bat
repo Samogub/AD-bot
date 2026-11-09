@@ -8,9 +8,10 @@ if exist "%ZIP%" del "%ZIP%"
 if exist _report rmdir /s /q _report
 mkdir _report
 if exist raid.log copy /y raid.log _report >nul
-if exist raid.ini copy /y raid.ini _report >nul
-rem only the 15 newest screenshots (the ones of a problem are the newest) and the 2 newest old logs: the archive stays small
-if exist shots powershell -NoProfile -Command "New-Item -ItemType Directory -Force '_report\shots' | Out-Null; Get-ChildItem 'shots\*.png' | Sort-Object LastWriteTime -Descending | Select-Object -First 15 | Copy-Item -Destination '_report\shots'"
+rem raid.ini without the private server link (the zip goes into a public channel)
+if exist raid.ini powershell -NoProfile -Command "Get-Content 'raid.ini' | Where-Object { $_ -notmatch '^\s*serverLink\s*=' } | Set-Content '_report\raid.ini'"
+rem only the 10 newest screenshots (the ones of a problem are the newest), each shrunk to a 1280 px JPEG (~100 KB; the old PNGs were 2-3 MB each and the zip did not fit into Discord), and the 2 newest old logs
+if exist shots powershell -NoProfile -Command "Add-Type -AssemblyName System.Drawing; New-Item -ItemType Directory -Force '_report\shots' | Out-Null; $enc = [Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object MimeType -eq 'image/jpeg'; $p = New-Object Drawing.Imaging.EncoderParameters 1; $p.Param[0] = New-Object Drawing.Imaging.EncoderParameter ([Drawing.Imaging.Encoder]::Quality), ([long]65); Get-ChildItem 'shots\*.png','shots\*.jpg' | Sort-Object LastWriteTime -Descending | Select-Object -First 10 | ForEach-Object { $i = [Drawing.Image]::FromFile($_.FullName); $w = 1280; $h = [int]($i.Height * $w / $i.Width); $b = New-Object Drawing.Bitmap $w, $h; $g = [Drawing.Graphics]::FromImage($b); $g.InterpolationMode = 'HighQualityBicubic'; $g.DrawImage($i, 0, 0, $w, $h); $b.Save('_report\shots\' + $_.BaseName + '.jpg', $enc, $p); $g.Dispose(); $b.Dispose(); $i.Dispose() }"
 if exist logs powershell -NoProfile -Command "New-Item -ItemType Directory -Force '_report\logs' | Out-Null; Get-ChildItem 'logs\*.log' | Sort-Object LastWriteTime -Descending | Select-Object -First 2 | Copy-Item -Destination '_report\logs'"
 if exist dimension\giant\log.txt copy /y dimension\giant\log.txt _report\dimension_log.txt >nul
 echo version %VER%> _report\version.txt
@@ -19,5 +20,6 @@ powershell -NoProfile -Command "$o = Get-CimInstance Win32_OperatingSystem; Add-
 powershell -NoProfile -Command "Compress-Archive -Path '_report\*' -DestinationPath '%ZIP%'"
 rmdir /s /q _report
 echo.
+powershell -NoProfile -Command "$m = [math]::Round((Get-Item '%ZIP%').Length / 1MB, 1); 'Size: ' + $m + ' MB' + $(if ($m -gt 9) { ' - too big for Discord (limit 10 MB): send raid.log from the bot folder and the 3 newest pictures from the shots folder instead' } else { ' - fits into Discord' })"
 echo Done: %ZIP% - send this file to the author.
 pause

@@ -88,6 +88,9 @@ DimCardsStart() {
     }
     if !found {
         Log("  Dimension: gem card not found on the results")
+        static shots := 0
+        if ++shots <= 2                                  ; 9.11: gems stayed 0 for days - the shot shows what the results look like now
+            Screenshot("dim_cards")
         ResultLineStart("dimension")                     ; time and pity are still worth reading
         return
     }

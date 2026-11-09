@@ -133,7 +133,7 @@ LOG_MAX     := 20000000  ; якщо за день лог виріс понад 2
 LOGDIR      := A_ScriptDir "\logs\"   ; логи минулих днів: raid_РРРРММДД.log
 LOG_DAYS    := 14        ; скільки днів їх тримати
 SHOTDIR     := A_ScriptDir "\shots\"   ; скріншоти, коли бій в Infinity обривається сам
-SHOT_MAX    := 100       ; скільки останніх скріншотів тримати (старіші видаляються)
+SHOT_MAX    := 40      ; скільки останніх скріншотів тримати (старіші видаляються)
 READY_SAT := 50       ; насиченість кольору, вище якої скіл вважається готовим (земля під порожнім слотом 5 ~45, готові скіли 55+)
 ; У персонажа без скіла (наприклад, без 5) слот порожній, і крізь нього видно мапу - на кольоровій землі
 ; він "готовий" завжди, бот тисне його кожен тік і до інших скілів черга не доходить.
@@ -273,7 +273,8 @@ cfg := Map(
     "farWalk",    IniRead(INI, "raid", "farWalk", "2500"),      ; Divine: після 1/2 немає Combo -> вперед стільки ms with Q x3 (0 = вимк.)
     "soloRaid",   IniRead(INI, "raid", "soloRaid", "1"),        ; рейд: вмикати Friends Only (соло, без інших гравців)
     "loadouts",   IniRead(INI, "raid", "loadouts", "1"),     ; міняти loadout: рейд - 1, Infinity або dungeon - 2, Speed Raid - 3
-    "dimShift",   IniRead(INI, "raid", "dimShift", "0"),         ; Dimension: start delay, ms - wait this long after the enemies show up
+    "dimWait",    IniRead(INI, "raid", "dimWait", "2000"),       ; Dimension: ms to wait after the first enemies are seen, before the run (0 = start at once)
+    "dimShift",   IniRead(INI, "raid", "dimShift", "0"),        ; Dimension: start delay, ms - wait this long after the enemies show up
     "dimFight",   IniRead(INI, "raid", "dimFight", "1"),         ; Dimension: normal fight after the run if enemies are left
     "dimMethod",  IniRead(INI, "raid", "dimMethod", "1"),        ; Dimension route: 1 = dimension\giant\log.txt, 2 = built-in route
     "xdim",       IniRead(INI, "raid", "xdim", "0"),             ; Extreme Dimension on/off (0.3.5: only the switch and the 1-4 picker, no run yet)
@@ -1267,7 +1268,6 @@ Step() {
         ; рейд скінчився (ENEMIES LEFT зник на 3+ s left) - знімаємо екран нагород у папку shots
         if !inFight && !raidShotDone && BossFight() && fightSince && A_TickCount - lastFight > 3000 {
             raidShotDone := true
-            Screenshot(lastEntered = "speed" ? "speed_end" : "raid_rewards")
         }
         ; bossAuto: the game's Auto fights; no skills, combo, walks, turns, resets - only keep Auto on and wait for the end
         if cfg["bossAuto"] = "1" && BossFight() {
@@ -1288,7 +1288,6 @@ Step() {
             }
             if !raidShotDone && autoBtnAt && A_TickCount - autoBtnAt > 3000 {    ; the Auto button is gone: the end screen is up
                 raidShotDone := true
-                Screenshot(lastEntered = "speed" ? "speed_end" : "raid_end")
             }
             if inFight && RespawnScreen()
                 SetStatus("death: waiting for respawn (Auto stays on)")
@@ -1732,7 +1731,6 @@ Step() {
         if MenuLoadoutWrong(1)
             return
         SetStatus("teleporting to the raid world")
-        Screenshot("raid_world")                          ; 3.11 23:00 this matched inside the raid: shows what was clicked
         ClickImg("raid_mode.png", x, y)
         ParkMouse()
         WaitLoaded()
@@ -1896,11 +1894,11 @@ LeaveInfinity() {
 Screenshot(tag, sx := 0, sy := 0, w := 1920, h := 1080) {            ; = SCR_W x SCR_H (defaults must be literals)
     try {
         DirCreate SHOTDIR
-        file := SHOTDIR FormatTime(, "yyyyMMdd_HHmmss") "_" tag ".png"
+        file := SHOTDIR FormatTime(, "yyyyMMdd_HHmmss") "_" tag ".jpg"       ; 9.11: JPEG ~300 KB instead of PNG 2-3 MB - the Report zip must fit into Discord
         res := SaveRegion(file, sx, sy, w, h)
         Log(res = 0 ? "  screenshot: " file : "  screenshot not saved (GDI+ code " res ")")
         list := ""
-        Loop Files SHOTDIR "*.png"
+        Loop Files SHOTDIR "*.*"
             list .= A_LoopFileFullPath "`n"
         arr := StrSplit(Sort(RTrim(list, "`n")), "`n")        ; імена з датою -> за алфавітом = за часом
         Loop arr.Length - SHOT_MAX
@@ -1929,7 +1927,7 @@ SaveRegion(file, sx, sy, w, h) {
         DllCall("gdiplus\GdiplusStartup", "ptr*", &token := 0, "ptr", si, "ptr", 0)
         DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "ptr", hbm, "ptr", 0, "ptr*", &bmp := 0)
         clsid := Buffer(16)
-        DllCall("ole32\CLSIDFromString", "wstr", "{557CF406-1A04-11D3-9A73-0000F81EF32E}", "ptr", clsid)   ; PNG
+        DllCall("ole32\CLSIDFromString", "wstr", file ~= "i)\.jpe?g$" ? "{557CF401-1A04-11D3-9A73-0000F81EF32E}" : "{557CF406-1A04-11D3-9A73-0000F81EF32E}", "ptr", clsid)   ; JPEG for screenshots (small), PNG for OCR (lossless)
         res := DllCall("gdiplus\GdipSaveImageToFile", "ptr", bmp, "wstr", file, "ptr", clsid, "ptr", 0)
         DllCall("gdiplus\GdipDisposeImage", "ptr", bmp)
         DllCall("gdiplus\GdiplusShutdown", "ptr", token)
@@ -2387,9 +2385,9 @@ RunRoute(route) {
         Screenshot("route_nostart")
         return
     }
-    if kind != "xdim" && running {   ; 8.11 (Discord report): the character did not walk, only the skills worked - the game was not ready for movement yet
-        SetStatus("Dimension: first enemies seen, starting the run in 2 s")
-        Sleep 2000
+    if kind != "xdim" && running && Num("dimWait", 2000) > 0 {   ; 8.11 (Discord report): the character did not walk, only the skills worked - the game was not ready for movement yet
+        SetStatus("Dimension: first enemies seen, starting the run in " Round(Num("dimWait", 2000) / 1000, 1) " s")
+        Sleep Num("dimWait", 2000)
     }
     Log("  dungeon route started (method " cfg["dimMethod"] ", " (route == DUNGEON_ROUTE ? "built-in" : "log.txt") ", " route.Length " steps)")
     SetStatus("dungeon: playing the recorded route")
@@ -2869,8 +2867,6 @@ SpeedEnter(x, y) {
         ClickXY(cx, cy)
         ParkMouse()
         Sleep 700
-        if A_Index = 1
-            Screenshot("speed_pick")                      ; видно, кого обрали
         ClickXY(SPEED_GO[1], SPEED_GO[2])
         ParkMouse()
         Sleep 2500
@@ -2960,7 +2956,6 @@ PickSpeedChar(&cx, &cy) {
     b := SPEED_GRID
     speedBarX := FindBarX()
     Log("  Speed Raid: scroll bar " (speedBarX ? "found at x=" speedBarX : "not found - scrolling with the mouse wheel"))
-    Screenshot("speed_list")                              ; for checking where the bar is on this PC
     if !speedBarX
         return PickSpeedCharWheel(&cx, &cy)
     DragBar(b[2] + 45, b[2] + b[4] + 80)                  ; повзунок на початку списку -> униз до упору
