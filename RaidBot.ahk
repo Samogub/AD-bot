@@ -760,10 +760,14 @@ SetupChecks(deep := false) {
                 Sleep 800
                 seen := SeePlay(&px, &py)
             }
+            diamond := !seen && PlayDiamond()             ; while the bot window is still hidden
             try g.Show("NA")
             if seen
                 Add("The bot sees the game (PLAY button found)", "ok")
-            else {
+            else if diamond {                             ; 9.11: a player had another font / button style: the PLAY picture did not match
+                Screenshot("setup_nomatch")
+                Add("The PLAY button looks different (another font or button style)", "warn", "The bot finds PLAY by its picture, so a different font, skin or animation can make it miss. After a game restart it presses PLAY at the usual place itself. If it still gets stuck: Send report (the pictures help to add your style) and use the default look of the game.")
+            } else {
                 Screenshot("setup_nomatch")
                 Add("The bot cannot see the game screen", "fail", "Stand in the lobby, close game windows (Esc), Check again. Still failing: Scale 100%, hide the taskbar, lowest graphics, Send report.")
             }
@@ -1095,8 +1099,13 @@ PickTarget(&why) {
         : speedDue && DateDiff(A_Now, speedDue, "Seconds") < 0 ? "next Speed Raid at " FormatTime(speedDue, "HH:mm")
         : "Speed Raid is not started after minute " SPEED_LAST_MIN " while the raid is on"
     if cfg["dungeon"] = "1" || cfg["xdim"] = "1" {
-        why := speedWhy
-        return "dungeon"
+        if DimPlayable() {
+            why := speedWhy
+            return "dungeon"
+        }
+        ; 9.11 (two players): Halloween / Death / Extreme ship without a run, the HUD there is not recognised and the bot sat in the
+        ; dimension for good. No recorded run = not going in; the other modes go on.
+        speedWhy := "no recorded run for " DimKind() " - Dimension skipped, record it on the Dimension page (Edit the run)"
     }
     if infOn {
         why := speedWhy
@@ -1109,6 +1118,9 @@ PickTarget(&why) {
     }
     return raidOn ? "raid" : "none"
 }
+
+; Giant always has a run (built-in); Halloween / Death / Extreme only with the player's own recording
+DimPlayable() => DimKind() = "giant" || DimRoute().Length > 0
 
 ; Speed Raid можна починати: увімкнено, минуло 30 min від минулого, і до рейду встигнемо
 ; (забіг до 10 min + вхід - після 46-ї minилини не починаємо, якщо рейд увімкнено)
@@ -1764,6 +1776,18 @@ Step() {
     ; сторож: екран довго не розпізнається (застрягле меню Esc, невідоме вікно гри).
     ; Перші 2 рази тиснемо Esc, далі по черзі хрестики відомих вікон гри (Esc їх не закриває).
     unknownSince := prevUnknown ? prevUnknown : A_TickCount
+    ; 9.11 (player report "screen recognizing problem when the bot restarts Roblox"): in his lobby the PLAY button is tilted / outlined
+    ; (pulse, event skin) and matches neither play.png nor the BAG text. A freshly restarted game is always in the lobby: after 30 s
+    ; of "not recognised" press PLAY at its usual place (every 20 s, for 5 min after the restart).
+    static blindAt := 0
+    if lastRestart && A_TickCount - lastRestart < 300000 && A_TickCount - unknownSince > 30000 && A_TickCount - blindAt > 20000 {
+        blindAt := A_TickCount
+        Log("  after the restart the screen is not recognised for " (A_TickCount - unknownSince) // 1000 " s - pressing PLAY at its usual place")
+        SetStatus("pressing PLAY at its usual place")
+        ClickXY(1760, 942)
+        ParkMouse()
+        return
+    }
     if A_TickCount - unknownSince > UNKNOWN_ESC {
         watchStep += 1
         if watchStep = 1 {
@@ -1992,6 +2016,27 @@ Num(key, def) {
 ; PLAY in the lobby; when the image does not match, the BAG text (OCR) says it is the lobby and PLAY is at its usual place.
 ; 06.11: a user's "Activate Windows" watermark lies over PLAY - play.png never matched, the bot waited for hours.
 ; With a menu open the screen is dimmed and BAG is not read, so this does not fire over menus.
+; The orange-red PLAY diamond (bottom right) is on screen: 6+ % of its area has the button colour (lobby 12 %, other screens 0-1 %).
+; Only a hint for the Setup check - a colour alone is not enough to press anything.
+PlayDiamond() {
+    b := [1670, 830, 180, 200]
+    px := GrabPixels(b[1], b[2], b[3], b[4]), n := 0, tot := 0
+    y := 0
+    while y < b[4] {
+        x := 0
+        while x < b[3] {
+            c := NumGet(px, (y * b[3] + x) * 4, "uint")
+            r := c >> 16 & 0xFF, g := c >> 8 & 0xFF, bl := c & 0xFF
+            tot++
+            if r > 190 && g > 70 && g < 150 && bl > 60 && bl < 140 && r - g > 70
+                n++
+            x += 4
+        }
+        y += 4
+    }
+    return n / tot >= 0.06
+}
+
 SeePlay(&x, &y) {
     if FindImg("play.png", &x, &y, 1500, 800, 1920, 1060)
         return true

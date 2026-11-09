@@ -48,6 +48,9 @@
 
 ## 🩹 Recent fixes
 
+- **Dimension gems** - the Dimension results screen changed and gems always showed 0. The bot now finds the gem card again and counts the gems.
+- **No recorded run** - Halloween, Death and Extreme Dimension ship without a run. The bot no longer enters them (it used to get stuck inside): it tells you, skips the Dimension and goes on with the other modes. Record your run in the Recorder first.
+- **Restart, PLAY not found** - if the PLAY button looks different (another font or style) and the screen is not recognised after a game restart, the bot presses PLAY at its usual place by itself. Setup check shows a yellow note when PLAY looks different.
 - **Smaller report** - Send report now makes a 1-2 MB zip (it was 20+ MB and did not fit into Discord): screenshots are small JPEGs, only 10 are included, and your private server link is left out. The bot also saves screenshots only when something goes wrong.
 - **Dimension start** - the bot now waits 2 s after it sees the first enemies, before it plays the run. Fixes the character that used skills but did not walk right after joining. Change it in `raid.ini` > `[raid]` > `dimWait=` (ms, 0 = start at once).
 - **Recorder, + Wait row** - the Wait window opened behind the Recorder (it stays on top), so the button seemed to do nothing. It now opens on top; with no row selected the wait goes to the end.

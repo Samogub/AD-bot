@@ -82,7 +82,8 @@ DimCardsStart() {
     global rwPendingAt
     found := false
     Loop 10 {                                            ; the cards may still be drawn: up to 1 s
-        if found := CardFind("card_gem.png", &gx, &gy)
+        ; 9.11: since 6.11 the gem icon on the Dimension results looks different (the old card_gem.png never matched there): own template first
+        if found := CardFind("card_gem_dim.png", &gx, &gy) || CardFind("card_gem.png", &gx, &gy)
             break
         Sleep 100
     }
