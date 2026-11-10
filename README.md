@@ -48,6 +48,7 @@
 
 ## 🩹 Recent fixes
 
+- **Stuck after RETRY** - sometimes after RETRY the game froze on the results with only LEAVE and the bot just waited. Now after 20 s of an unknown screen the bot looks at the results again, presses LEAVE, and restarts the game if that does not help.
 - **Stuck in the PLAY menu** - if the bot did not recognise the Dimension card in the PLAY menu, it waited there for minutes. Now after 30 s it closes the menu and looks again.
 - **Stuck on Dimension results** - sometimes the game shows the results with only LEAVE and "Teleporting in 0", and never teleports. The bot waited there up to 10 min. Now it presses LEAVE by itself, and if the screen is still there 25 s later, it restarts the game.
 - **Dimension gems** - the Dimension results screen changed and gems always showed 0. The bot now finds the gem card again and counts the gems.

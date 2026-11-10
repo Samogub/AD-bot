@@ -1239,7 +1239,9 @@ Step() {
         return
     }
     ; results first: the dim ENEMIES LEFT HUD shows under them too, and the route must not start there
-    if lastEntered = "dungeon" && routeDone && DimRetry()
+    ; 10.11 20:33: RETRY pressed, the game froze on results with only LEAVE (routeDone was cleared by then) - the screen was
+    ; not recognised for 20 s: look at the results again (DimRetry presses LEAVE / restarts the game)
+    if lastEntered = "dungeon" && (routeDone || prevUnknown && A_TickCount - prevUnknown > 20000) && DimRetry()
         return
     if (lastEntered = "infinity" || lastEntered = "dungeon") && LeaveInfinity()
         return
