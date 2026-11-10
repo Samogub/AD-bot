@@ -1738,6 +1738,17 @@ Step() {
         }
         if goal != "raid" {                                               ; поза часом рейду у світ рейду не йдемо
             SetStatus("modes menu: DIMENSION not visible, waiting")
+            ; player 9.11 21:26: the bot stood here 6 min (the DIMENSION card was not matched) - after 30 s close the menu and look again
+            static menuSince := 0, menuLast := 0
+            if A_TickCount - menuLast > 5000
+                menuSince := A_TickCount
+            menuLast := A_TickCount
+            if A_TickCount - menuSince > 30000 {
+                menuSince := A_TickCount
+                Log("  modes menu: DIMENSION card not found for 30 s - closing the menu")
+                Screenshot("modes_menu")
+                Send "{Esc}"
+            }
             return
         }
         if MenuLoadoutWrong(1)
