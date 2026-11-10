@@ -2633,6 +2633,30 @@ DimRetry() {
         return false
     at := A_TickCount
     txt := OcrRegion([450, 730, 1150, 120])
+    ; only LEAVE, no RETRY, "Teleporting in 0": the game's teleport hung (player 9.11 22:52, Extreme: the bot waited
+    ; 10 min). Seen for 5 s (one OCR miss of RETRY must not press LEAVE) -> LEAVE (it sits at 1265,760 then);
+    ; still there 25 s later -> restart the game
+    static onlyLeave := 0, leaveAt := 0
+    if RegExMatch(txt, "i)leave") && !RegExMatch(txt, "i)retry") {
+        onlyLeave := onlyLeave || A_TickCount
+        if A_TickCount - onlyLeave < 5000
+            return true
+        lastFight := A_TickCount - FIGHT_STICKY, dimRunAt := 0
+        if !dimHandled
+            dimHandled := true, Stat("dimRuns")
+        if !leaveAt {
+            leaveAt := A_TickCount
+            Log("Dimension results without RETRY (the game's teleport hung) - pressing LEAVE")
+            ClickXY(1265, 760)
+            ParkMouse()
+        } else if A_TickCount - leaveAt > 25000 {
+            onlyLeave := 0, leaveAt := 0
+            Screenshot("dim_onlyleave")
+            RestartRoblox("Dimension: results without RETRY, LEAVE did not help", , 60000)
+        }
+        return true
+    }
+    onlyLeave := 0, leaveAt := 0
     if !RegExMatch(txt, "i)retry") || !RegExMatch(txt, "i)leave") {
         if retryPending                                   ; the results are gone: RETRY worked, arm the route for the new run
             retryPending := false, routeDone := false, xdimStartAt := DimKind() != "giant" ? A_TickCount : 0   ; Extreme / Halloween / Death: the wait starts again
