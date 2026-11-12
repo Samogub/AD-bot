@@ -48,7 +48,7 @@
 
 ## 🩹 Recent fixes
 
-- **Raids not counted** - raids joined through Group Finder never showed up in "raids" (stats, session summary, Discord webhook). Now every raid is counted once at the end of the fight, and the raid rewards are read from the REWARDS cards first.
+- **Raids not counted** - raids joined through Group Finder never showed up in "raids" (stats, session summary). Now every raid is counted once at the end of the fight, and the raid rewards are read from the REWARDS cards first.
 - **Dimension not found in the list** - on a slow PC the list did not scroll in time and the bot gave up after one look. Now it reads the list a few more times before deciding the name is not there.
 - **AUTO in raids** - AUTO is found by its colours when the pictures do not match, and the click is taken by the game again.
 - **Run after RETRY** - after RETRY the bot waits until the character can walk before playing the recorded run.
