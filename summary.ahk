@@ -1,5 +1,5 @@
 ﻿; summary.ahk - session counters and the summary window shown after Stop (F2 / STOP button).
-; Window: compact style A (black, thin white lines, corner brackets, JetBrains Mono, red accent), drawn into a bitmap.
+; Window: HUD 2.0 card (rounded, theme colours C.*, head/ui/mono fonts), drawn into a bitmap; a click anywhere closes it.
 
 sessStart := 0, sessMs := 0, sessFrom := "", sessTo := ""
 sumBmp := 0, sumPW := 0, sumPH := 0
@@ -37,66 +37,74 @@ SummaryHide() {
         sumG.Hide()
 }
 
-SummaryShow() {
-    global sumG, sumBmp, sumPW, sumPH, gr
-    W := 340, H := 276
+; draws the card (HUD 2.0 look, colours C.* of the active theme) into sumBmp; used by SummaryShow and "shots summary"
+SummaryDraw() {
+    global sumBmp, sumPW, sumPH, gr
+    W := 360, H := 326
     SK := CK() * 1.2 * 0.85                              ; follows the HUD SIZE setting; 1.2 (text was small), then -15%
     sumPW := Round(W * SK), sumPH := Round(H * SK)
-    if !sumG {
-        sumG := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale")
-        sumG.BackColor := CMP_BG
-    }
     real := gr
-    cv := Canvas(sumPW, sumPH, CMP_BG)
+    cv := Canvas(sumPW, sumPH, C.bg)
     gr := cv[2]
     DllCall("gdiplus\GdipScaleWorldTransform", "ptr", gr, "float", SK, "float", SK, "int", 0)
-    GRY := CMP_GRAY, VAL := CMP_VAL
-    CFrame(0, 0, W, H, "FFFFFF", 140)
-    Dot(14, 15, 8, CMP_RED)
-    LTx("SESSION", 11, VAL, 30, 8, 150, 22, 2)
-    LTx("[CLOSE]", 10, CMP_RED, W - 90, 8, 76, 22, 1, 2)
-    CRect(14, 32, W - 28, 1, "FFFFFF", 50)
-    LTx(SessDur(sessMs), 10, VAL, 14, 38, 120, 20, 1)
+    FillRR(0, 0, W, H, 16, C.sb)
+    GradRR(0, 0, W, H, 16, C.g1, 140, C.g1, 0, true)
+    StrokeRR(0, 0, W, H, 16, C.lin, 110)
+    ; header: title, session length, start - end
+    Dot(18, 23, 8, C.on)
+    Tx("Session", "head", 18, 1, C.text, 32, 14, 150, 26)
+    Tx(SessDur(sessMs), "mono", 14, 1, C.hi, W - 146, 14, 130, 26, 2)
     from := sessFrom != "" ? FormatTime(sessFrom, "HH:mm") : "--:--", to := sessTo != "" ? FormatTime(sessTo, "HH:mm") : "--:--"
-    Tx(from " - " to, "mono", 10, 0, GRY, W - 134, 38, 120, 20, 2)
+    Tx(from " - " to, "mono", 11, 0, C.dim, 32, 40, 200, 18)
+    FillRR(16, 66, W - 32, 1, 0.5, C.lin, 60)
     ; table: right edges of the number columns
-    cols := [["RUNS", 150], ["GEMS", 206], ["TOKENS", 266], ["GEMS/H", 326]]
-    LTx("MODE", 9, GRY, 14, 66, 80, 18, 1, 0, 0, 170)
-    for c in cols
-        LTx(c[1], 9, GRY, c[2] - 56, 66, 56, 18, 1, 2, 0, 170)
-    CRect(14, 86, W - 28, 1, "FFFFFF", 30)
-    rows := [["RAID", sess["raids"], sess["raidGems"], sess["raidTokens"]]
-           , ["SPEED", sess["speedRuns"], sess["speedGems"], sess["speedTokens"]]
-           , ["INFINITY", sess["infRuns"], "", ""]
-           , ["DIMENSION", sess["dimRuns"], sess["dimGems"], ""]]
-    y := 92
+    cols := [["Runs", 168], ["Gems", 224], ["Tokens", 280], ["Gems/h", 336]]
+    Tx("MODE", "ui", 10, 1, C.dim, 28, 74, 80, 18)
+    for cc in cols
+        Tx(StrUpper(cc[1]), "ui", 10, 1, C.dim, cc[2] - 56, 74, 56, 18, 2)
+    rows := [["Raids", sess["raids"], sess["raidGems"], sess["raidTokens"]]
+           , ["Speed Raids", sess["speedRuns"], sess["speedGems"], sess["speedTokens"]]
+           , ["Infinity", sess["infRuns"], "", ""]
+           , ["Dimension", sess["dimRuns"], sess["dimGems"], ""]]
+    y := 94
     for r in rows {
-        LTx(r[1], 10, GRY, 14, y, 90, 20, 1)
+        FillRR(16, y, W - 32, 28, 10, C.field, 190)
+        StrokeRR(16, y, W - 32, 28, 10, C.lin, 28)
+        Tx(r[1], "ui", 12, 1, C.text, 28, y, 90, 28)
         vals := [String(r[2]), r[3] = "" ? "—" : String(r[3]), r[4] = "" ? "—" : String(r[4]), r[3] = "" ? "—" : PerHour(r[3])]
-        for i, c in cols
-            Tx(vals[i], "mono", 10, 0, vals[i] = "—" ? GRY : VAL, c[2] - 56, y, 56, 20, 2)
-        y += 22
+        for i, cc in cols
+            Tx(vals[i], "mono", 12, i = 1, vals[i] = "—" ? C.dim : (i = 1 ? C.hi : i = 4 ? C.on : C.text), cc[2] - 56, y, 56, 28, 2)
+        y += 32
     }
-    CRect(14, y + 2, W - 28, 1, "FFFFFF", 50)
+    ; tiles: total gems, total tokens, Roblox restarts
     gems := sess["raidGems"] + sess["speedGems"] + sess["dimGems"], toks := sess["raidTokens"] + sess["speedTokens"]
-    y += 8
-    LTx("TOTAL GEMS", 10, GRY, 14, y, 120, 20, 1)
-    Tx(String(gems), "mono", 11, 1, VAL, 140, y, 56, 20, 2)
-    Tx(PerHour(gems) " /h", "mono", 10, 0, GRY, W - 134, y, 120, 20, 2)
-    y += 22
-    LTx("TOTAL TOKENS", 10, GRY, 14, y, 130, 20, 1)
-    Tx(String(toks), "mono", 11, 1, VAL, 140, y, 56, 20, 2)
-    Tx(PerHour(toks) " /h", "mono", 10, 0, GRY, W - 134, y, 120, 20, 2)
-    y += 30
-    LTx("ROBLOX RESTARTS", 10, GRY, 14, y, 190, 20, 1)
-    Tx(String(sess["restarts"]), "mono", 11, 1, VAL, W - 74, y, 60, 20, 2)
-    CRect(0, 0, 10, 2, "FFFFFF"), CRect(0, 0, 2, 10, "FFFFFF")
-    CRect(W - 10, H - 2, 10, 2, "FFFFFF"), CRect(W - 2, H - 10, 2, 10, "FFFFFF")
+    tiles := [["Gems", String(gems), PerHour(gems) " /h"], ["Tokens", String(toks), PerHour(toks) " /h"], ["Restarts", String(sess["restarts"]), "Roblox"]]
+    y += 4
+    for i, t in tiles {
+        x := 16 + (i - 1) * 112
+        FillRR(x, y, 104, 62, 12, C.card, 255)
+        GradRR(x, y, 104, 62, 12, C.g1, 110, C.g1, 0, true)
+        StrokeRR(x, y, 104, 62, 12, C.lin, 70)
+        Tx(StrUpper(t[1]), "ui", 10, 1, C.dim, x + 12, y + 6, 80, 16)
+        Tx(t[2], "head", 20, 1, C.hi, x + 12, y + 20, 84, 26)
+        Tx(t[3], "mono", 10, 0, C.dim, x + 12, y + 44, 84, 14)
+    }
+    Tx("CLICK ANYWHERE TO CLOSE", "ui", 9, 0, C.dim, 16, H - 22, W - 32, 14, 1, 190)
     hbmNew := ToHbm(cv)
     gr := real
     if sumBmp
         DllCall("DeleteObject", "ptr", sumBmp)
     sumBmp := hbmNew
+}
+
+SummaryShow() {
+    global sumG, sumPW, sumPH
+    if !sumG {
+        sumG := Gui("+AlwaysOnTop -Caption +ToolWindow -DPIScale")
+        sumG.BackColor := C.bg
+    }
+    SummaryDraw()
+    DllCall("SetWindowRgn", "ptr", sumG.Hwnd, "ptr", DllCall("CreateRoundRectRgn", "int", 0, "int", 0, "int", sumPW + 1, "int", sumPH + 1, "int", Round(32 * sumPW / 360), "int", Round(32 * sumPW / 360), "ptr"), "int", 1)
     ; next to the main window (right side, else left), on its monitor
     g.GetPos(&gx, &gy, &gw, &gh)
     sx := 0, sy := 0

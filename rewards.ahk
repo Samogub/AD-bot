@@ -43,7 +43,12 @@ CardNumber(x, y) {
 
 ; kind: "raid" / "speed". true = the panel was there (read or not), false = no gem card on the screen
 RewardCards(kind) {
-    global runTokens, tokFromScreen
+    global runTokens, tokFromScreen, raidCountAt
+    ; Group Finder raids start by themselves (no PARTY screen, no Start press), so the raid was never counted: count it here
+    if kind = "raid" && A_TickCount - raidCountAt > 20 * 60000 && CardFind("raid_gem_icon.png", &cx, &cy)
+        Stat("raids")
+    if kind = "raid" && CardFind("raid_gem_icon.png", &cx, &cy)
+        raidCountAt := A_TickCount
     ; raid results (4.11): other icons than Speed - raid_*_icon.png match exactly, card_* do not; they sit 7,10 px left/up of card_*
     gemT := kind = "raid" ? "raid_gem_icon.png" : "card_gem.png", tokT := kind = "raid" ? "raid_token_icon.png" : "card_token.png"
     dx := kind = "raid" ? 7 : 0, dy := kind = "raid" ? 10 : 0

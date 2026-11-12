@@ -4,18 +4,44 @@
 
 **Farming bot for Anime Dimensions Simulator (Roblox) that keeps going when Roblox itself fails.**
 
-![version](https://img.shields.io/badge/version-0.3.5-e5334b?style=for-the-badge)
+![version](https://img.shields.io/badge/version-0.4.0-b0449a?style=for-the-badge)
 ![windows](https://img.shields.io/badge/Windows-10%20%2F%2011-1f1f2e?style=for-the-badge&logo=windows)
 ![autohotkey](https://img.shields.io/badge/AutoHotkey-v2-1f1f2e?style=for-the-badge&logo=autohotkey)
 ![screen](https://img.shields.io/badge/screen-1920x1080-1f1f2e?style=for-the-badge)
 
-<img src="docs/hero.gif" width="640" alt="AD/BOT compact window">
+<img src="docs/hero.gif" width="640" alt="AD Bot 0.4.0, HUD 2.0">
 
 </div>
 
+> [!WARNING]
+> **The browser or Windows Defender may block the download and call it a virus. It is a false alarm.**
+> What triggers it is the **Discord webhook** (`webhook.ahk`): the bot can send its reports to your Discord channel, and antivirus programs do not like scripts that send data to the internet. It only sends when you put your own webhook link in **Discord**, and only to that link. Every file is a plain-text `.ahk` script, so you can open it and read what it does.
+> To download anyway: in Chrome open **Downloads** and press **Keep**; in Windows Defender open **Protection history** and press **Allow**.
+
 > Roblox disconnects, freezes on a teleport, loops a retry screen or just closes? AD/BOT was made for players for whom this happens **all the time**. It notices the problem, restarts the game, joins again and carries on, so your night run does not end at the first crash.
 
-## ✨ New in 0.3.5
+## ✨ New in 0.4.0
+
+| | |
+|---|---|
+| 🎨 **HUD 2.0** | A new full window: Home, Modes, Connect, Stats, Settings and Setup pages, a plan of what the bot does next, animations, click sounds and 9 themes. The compact window is still there. |
+| 🛡️ **Safe mode** | When the same mode keeps failing, the bot restarts the game, and after the 3rd problem in 2 hours it pauses that mode for a while and farms something else. |
+| 🔁 **Auto rejoin** | A frozen game (Not Responding, or the same picture for 3 minutes) is restarted, and a watchdog starts the bot again if it hangs. Your private server link is used after every restart. |
+| 🎛️ **Recorder 2.0** | A new, simpler recorder that records every move and plays it back. |
+| 📦 **Share runs** | Export your run to one `.adrun` file and Import a friend's run in the Recorder. |
+| 🔥 **Extreme knows today's map** | The bot knows which Extreme map is open today and plays your own run for that map. |
+| 💬 **Discord reports** | Put your webhook link in **Discord**: the bot posts what it did (raids, gems, problems), so you can watch it from your phone. |
+| ⚔️ **Create room is back** | Raids can use your own room again, besides Group Finder. |
+| ⏱️ **Raid start minute** | Your time zone is not a full hour away? Set the minute the raid opens (Modes > Raid, xx:00 by default). |
+
+<div align="center">
+<img src="docs/home.png" width="430" alt="HUD 2.0 Home page, dark">
+<img src="docs/home_light.png" width="430" alt="HUD 2.0 Home page, light">
+<br><sub>HUD 2.0: the Home page in the dark and the light theme</sub>
+</div>
+
+<details>
+<summary><b>New in 0.3.5</b></summary>
 
 | | |
 |---|---|
@@ -27,9 +53,9 @@
 | 🩺 **Better Setup check** | Checks that Roblox runs first, then really looks for the PLAY button, reads the scale of the monitor the game is on, warns about a self-hiding taskbar. After **Stop**, a yellow plate tells what went wrong and how to fix it. |
 | 🌗 **Light theme** | Sun / moon switch at the top of the compact window. |
 
-> **Loadouts:** keep the original names in the Bag - **Loadout 1** (raid), **Loadout 2** (Infinity, Dimension, Extreme), **Loadout 3** (Speed Raid). Do not rename them: the bot finds them by name.
+</details>
 
-<div align="center"><img src="docs/compact_035.png" width="520" alt="0.3.5 compact window, dark and light theme"><br><sub>0.3.5: Extreme Dimension and slots, dark and light theme</sub></div>
+> **Loadouts:** keep the original names in the Bag - **Loadout 1** (raid), **Loadout 2** (Infinity, Dimension, Extreme), **Loadout 3** (Speed Raid). Do not rename them: the bot finds them by name.
 
 <details>
 <summary><b>New in 0.3.1</b></summary>
@@ -48,6 +74,9 @@
 
 ## 🩹 Recent fixes
 
+- **Loadout not changed ("Loudoutl")** - the text recognition sometimes glued the 1 to the word, so the bot did not see Loadout 1 and never switched. It now reads that as 1 too.
+- **Raid cut by a restart** - if the game was restarted in the middle of a raid, the bot thought the raid was done for that hour. Now it joins the raid again.
+- **Raid seen as the lobby** - in the middle of a raid the bot sometimes saw PLAY or the mode cards, left for Dimension and the game was closed. The AUTO button now tells it that it is still in a run.
 - **Raids not counted** - raids joined through Group Finder never showed up in "raids" (stats, session summary). Now every raid is counted once at the end of the fight, and the raid rewards are read from the REWARDS cards first.
 - **Dimension not found in the list** - on a slow PC the list did not scroll in time and the bot gave up after one look. Now it reads the list a few more times before deciding the name is not there.
 - **AUTO in raids** - AUTO is found by its colours when the pictures do not match, and the click is taken by the game again.
@@ -75,13 +104,6 @@
 - **Loadout switch** - the modes menu could stay open after leaving a Dimension and cover the BAG button, so the loadout was never changed. The bot now closes the menu before retrying.
 - **Dimension, Method 2** - your own recording now saves to its own folder `dimension\giant2`, so it no longer replaces the Method 1 run.
 - **Start-up error** - fixed "uiLog has not been assigned" when the bot logs or closes during start-up.
-
-<table>
-<tr>
-<td align="center"><img src="docs/compact.png" width="300"><br><sub>Compact window</sub></td>
-<td align="center"><img src="docs/modes.png" width="520"><br><sub>Classic window</sub></td>
-</tr>
-</table>
 
 ## 🛠️ When Roblox breaks
 

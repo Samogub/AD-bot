@@ -343,8 +343,10 @@ CompactRows(name) {
             rows.Push(CTog(CT("loadouts", "LOADOUTS"), CT("xdim", "EXTREME")))
         case "raid":
             solo := cfg["soloRaid"] = "1"
-            rows.Push({k: "pick", label: "RAID"})
+            rows.Push({k: "pick", label: "RAID", kind: "raid"})
+            rows.Push(CTog(CT("raidCreate", "CREATE ROOM")))      ; own room through Create instead of Group Finder (for raids nobody queues)
             rows.Push(CStep("RAID EVERY", "raidEvery", 1, 1, 6, 1, "h", 1))
+            rows.Push(CStep("RAID AT XX:", "raidMin", 5, 0, 55, 1, "", 0))   ; minute when the raid starts (half-hour time zones: 30)
             if cfg["bossAuto"] = "1"                         ; the game's Auto fights: walking, turning and reset settings are unused
                 rows.Push(CTog(CT("soloRaid", "SOLO")))
             else {
@@ -363,6 +365,7 @@ CompactRows(name) {
         case "infinity":
             ga := cfg["infGameAuto"] = "1"                   ; the game's Auto fights: AOE settings are locked
             rows.Push(CTog(CT("infGameAuto", "GAME AUTO")))
+            rows.Push(CStep("RUN TIME", "infRunMin", 1, 0, 59, 1, "min", 0))   ; leave Infinity after this many minutes and enter again (0 = off)
             rows.Push(CStep("AOE PAUSE", "spreadMs", 500, 1000, 20000, 1000, "s", 7000, ga))
             rows.Push(CStep("AUTO IF STUCK", "infAuto", 5000, 0, 60000, 1000, "s", 15000, ga))
             rows.Push(CCap("BIG AOE SKILLS"))
@@ -372,7 +375,7 @@ CompactRows(name) {
             rows.Push({k: "chips", items: items})
         case "dimension":
             rows.Push(CTog(CT("dungeon", "DIM ON", false, "t2_dungeon"), CT("dimFight", "KEEP FIGHT")))
-            rows.Push({k: "chips", items: [["GIANT", DimKindUi() = "giant", PickDimName.Bind("giant"), false, "dk_giant"], ["HALLOWEEN", DimKindUi() = "halloween", PickDimName.Bind("halloween"), false, "dk_halloween"], ["DEATH", DimKindUi() = "death", PickDimName.Bind("death"), false, "dk_death"]]})
+            rows.Push({k: "pick", label: "DIMENSION", kind: "dim"})        ; the list of every Dimension (drop-up, like the raid picker)
             rows.Push(CStep("START DELAY", "dimShift", 100, 0, 5000, 1000, "s", 0))
             rows.Push({k: "chips", items: [["SLOT 1", !InStr("2345", cfg["dimMethod"]), PickDimMethod.Bind("1"), false, "dm_1"], ["SLOT 2", cfg["dimMethod"] = "2", PickDimMethod.Bind("2"), false, "dm_2"]]})
             rows.Push({k: "chips", items: [["SLOT 3", cfg["dimMethod"] = "3", PickDimMethod.Bind("3"), false, "dm_3"], ["SLOT 4", cfg["dimMethod"] = "4", PickDimMethod.Bind("4"), false, "dm_4"], ["SLOT 5", cfg["dimMethod"] = "5", PickDimMethod.Bind("5"), false, "dm_5"]]})
@@ -385,7 +388,11 @@ CompactRows(name) {
                 n0 := rows.Length
                 rows.Push({k: "chips", items: [["EASY", cfg["xdimPick"] = "1", PickXdim.Bind("1"), false, "xd_1"], ["NORMAL", cfg["xdimPick"] = "2", PickXdim.Bind("2"), false, "xd_2"], ["NIGHTMARE", cfg["xdimPick"] = "3", PickXdim.Bind("3"), false, "xd_3"], ["EXTREME", cfg["xdimPick"] = "4", PickXdim.Bind("4"), false, "xd_4"]]})
                 rows.Push(CStep("WAIT AFTER START", "xdimWait", 1, 5, 60, 1, "s", 15))
-                rows.Push({k: "btns", pre: "x", items: [["EDIT RUN", DimEditK.Bind("xdim")], ["FOLDER", (*) => OpenPath(DimDir("xdim"))]]})
+                xm := XdimMap()                               ; today's map, < > fix it (each map has its own run)
+                rows.Push({k: "step", label: "TODAY'S MAP", val: StrUpper(xm) " " XdimPos(), id: "xdmap", off: false
+                    , dn: XdimShift.Bind(-1), up: XdimShift.Bind(1)})
+                rows.Push({k: "cap", label: (FileExist(DimDir("xdim", true) "log.txt") ? "RUN RECORDED" : "NO RUN YET") " · NEXT: " StrUpper(XdimMap(1))})
+                rows.Push({k: "btns", pre: "x", items: [["EDIT RUN", DimEditK.Bind("xdim")], ["FOLDER", (*) => OpenPath(A_ScriptDir "\dimension")]]})
                 if cfg["xdim"] != "1"                         ; Extreme off: its settings are greyed out
                     Loop rows.Length - n0
                         CLockRow(rows[n0 + A_Index])
@@ -399,6 +406,7 @@ CompactRows(name) {
             rows.Push({k: "step", label: "OPACITY", val: Round(cAlpha / 255 * 100) "%", id: "calpha", off: false
                 , dn: StepCAlpha.Bind(-5), up: StepCAlpha.Bind(5)})
             rows.Push({k: "btns", items: [["LOG", OpenPath.Bind(LOGFILE)], ["INI", OpenPath.Bind(INI)], ["SHOTS", OpenPath.Bind(SHOTDIR)]]})
+            rows.Push({k: "btns", items: [["SERVER LINK", EditServerLink], ["DISCORD", EditWebhook]]})
             rows.Push({k: "act", label: "FULL UI", fn: SetSkin.Bind("full")})
     }
     return rows
@@ -658,10 +666,10 @@ CompactRow(r, y) {
             pickY := y
             LTx(r.label, 10, CMP_GRAY, 22, y, 80, 24, 1)
             bx := 96, bw := W - 12 - bx
-            CFrame(bx, y + 2, bw, 20, "FFFFFF", IsHot("pick") || pickOpen ? 255 : 120)
-            Tx(RaidShort(cfg["raidName"]), "mono", 11, 1, CMP_RED, bx + 6, y + 2, bw - 30, 20, 0)
+            CFrame(bx, y + 2, bw, 20, "FFFFFF", IsHot("pick_" r.kind) || pickOpen && pickKind = r.kind ? 255 : 120)
+            Tx(r.kind = "dim" ? StrUpper(DimShort(DimKindUi())) : RaidShort(cfg["raidName"]), "mono", 11, 1, CMP_RED, bx + 6, y + 2, bw - 30, 20, 0)
             Tx(pickOpen ? "v" : "^", "mono", 11, 1, CMP_VAL, bx + bw - 22, y + 2, 18, 20, 1)
-            Hit(bx, y + 2, bw, 20, "pick", PickToggle)
+            Hit(bx, y + 2, bw, 20, "pick_" r.kind, PickShow.Bind(r.kind))
         case "act":
             id := "act_" r.label
             if IsHot(id)
@@ -689,17 +697,32 @@ PickStep() {
     UiRender()
 }
 
+; which list the drop-up shows: "raid" or "dim"
+PickShow(kind, *) {
+    global pickKind
+    pickKind := kind
+    PickToggle()
+}
+
 PickChoose(k, *) {
-    PickRaid(k)
+    if pickKind = "dim"
+        PickDimName(k)
+    else
+        PickRaid(k)
     PickToggle()
 }
 
 CompactPickOverlay(W, by) {
     kk := 1 - (1 - pickK) ** 3
     keys := [], rh := 22
-    for k in RAIDS
-        keys.Push(k)
-    full := keys.Length * rh + 8
+    dim := pickKind = "dim"
+    if dim
+        keys := DIM_ORDER
+    else
+        for k in RAIDS
+            keys.Push(k)
+    cols := dim ? 2 : 1, per := Ceil(keys.Length / cols), cwid := (W - 24) / cols      ; Dimensions: two columns (14 names do not fit in one)
+    full := per * rh + 8
     bot := by - 6
     hh := Round(Min(full, bot - 30) * kk)
     top := bot - hh
@@ -708,17 +731,17 @@ CompactPickOverlay(W, by) {
     if pickOpen
         Hit(0, 0, W, bot + 40, "pick_close", PickToggle)
     for i, k in keys {
-        ry := top + 4 + (i - 1) * rh
+        ry := top + 4 + Mod(i - 1, per) * rh, rx := 12 + ((i - 1) // per) * cwid
         if ry + rh > bot - 2 || ry + rh > top + hh
             continue
-        on := cfg["raidName"] = k, id := "pk_" k
+        on := (dim ? DimKindUi() : cfg["raidName"]) = k, id := "pk_" k
         if IsHot(id) && pickOpen
-            CRect(12, ry, W - 24, rh, "FFFFFF", 16)
+            CRect(rx, ry, cwid, rh, "FFFFFF", 16)
         if on
-            CRect(16, ry + 8, 5, 5, CMP_RED)
-        LTx(StrUpper(RaidShort(k)), 10, on ? CMP_VAL : CMP_GRAY, 28, ry, W - 60, rh, 1)
+            CRect(rx + 4, ry + 8, 5, 5, CMP_RED)
+        LTx(StrUpper(dim ? DimShort(k) : RaidShort(k)), 10, on ? CMP_VAL : CMP_GRAY, rx + 16, ry, cwid - 20, rh, 1)
         if pickOpen
-            Hit(12, ry, W - 24, rh, id, PickChoose.Bind(k))
+            Hit(rx, ry, cwid, rh, id, PickChoose.Bind(k))
     }
 }
 
@@ -740,6 +763,7 @@ CToggle(t, x, y) {
 
 ; ------------------------------ fade-in of the compact window (bot stopped only) ------------------------------
 fadeA := 0, fading := false
+pickKind := "raid"
 pickOpen := false, pickK := 0.0, pickY := 0                  ; raid picker (RAID group): drop-up list that slides up from the bottom
 
 ; what the bot is doing / did last: the mode it entered, else the goal of the run
