@@ -185,6 +185,7 @@ lastNo5Reset := 0        ; коли востаннє ресетили персо
 no5Pending   := false    ; портрет змінився після респавну, вже обробленого по відліку: скіли нового персонажа ще треба перевірити
 lastLoadoutWarn := 0     ; коли востаннє писали УВАГА про рейд без loadout 1
 pickFails := 0, pickFailHour := "", pickMissAt := 0   ; PickRaidByName: misses of this hour's raid (reset in Start)
+raidCountAt := -99999999   ; when a raid was last counted (Start press or fight end)
 sess := Map("raids", 0, "raidGems", 0, "raidTokens", 0, "speedRuns", 0, "speedGems", 0, "speedTokens", 0, "infRuns", 0, "dimRuns", 0, "dimGems", 0, "restarts", 0)   ; підсумок поточного запуску бота
 FIGHT_STICKY := 15000    ; скільки ms після цього ще битися, якщо екран не розпізнано
 lastReset  := 0          ; коли востаннє робили Esc-R-Enter
@@ -1158,7 +1159,7 @@ SetEntered(what) {
 
 ; Кожен тік визначаємо, що на екрані, і робимо один відповідний крок.
 Step() {
-    global partySince, lastCreate, lastFight, lastReset, raidDoneKey, unknownSince, watchStep, raidWalkDue, patrolIdx, friendsDone, routeDone, dimRunAt
+    global partySince, lastCreate, lastFight, lastReset, raidDoneKey, unknownSince, watchStep, raidWalkDue, patrolIdx, friendsDone, routeDone, dimRunAt, raidCountAt
     global fightSince, infDrop, portraitSig, walkAt, infLootDone, lastDmg, dmgChanged, searchTurns, raidShotDone, sameReads, learnLeft, comboSeen, lastCombo, lastComboCheck, camYaw, afterRespawn, wasDead, lastRespawnAt, farPress, lastSearch, lastAuto, autoOffAt
     global autoOffAt, charIdx, rewardRaw, rewardReads, rewardRepeat, rdChanges, rdResetNo5, rdResetCombo, lastNo5Reset, lastLoadoutWarn, no5Pending
     global dimHandled                        ; was local here: the reset at the route start never reached DimRetry (only the 1st run per Start was counted/read)
@@ -1224,7 +1225,9 @@ Step() {
         lastRes := A_TickCount
         if FindImg("raid_results.png", &x, &y, 300, 120, 900, 260) {
             infLootDone := true
-            ReadLoot("raid")
+            ; 12.11: the old ReadLoot found nothing on this screen - the REWARDS cards first
+            if !RewardCards("raid")
+                ReadLoot("raid")
             return
         }
     }
@@ -1506,6 +1509,9 @@ Step() {
         if BossFight() && lastFight > fightSince {            ; скільки тривав бій з босом - видно, чи зміни допомагають
             s := (lastFight - fightSince) // 1000
             Log((lastEntered = "speed" ? "Speed Raid" : RaidTitle()) ": fight lasted " s // 60 ":" Format("{:02}", Mod(s, 60)))
+            ; 12.11: Group Finder raids have no Start press, so they were never counted - count the raid at the fight end (once per 20 min)
+            if lastEntered = "raid" && A_TickCount - raidCountAt > 20 * 60000
+                Stat("raids"), raidCountAt := A_TickCount
             if lastEntered = "raid"
                 Log("  Rewards " (rewardRepeat ? rewardRepeat : "?") " (raw " (rewardRaw != "" ? rewardRaw : "?") ", reads " rewardReads "), loadout " curLoadout
                     . ", deaths+resets " rdChanges ", resets " (rdResetNo5 + rdResetCombo) " (no 5: " rdResetNo5 ", no Combo: " rdResetCombo ")")
@@ -1555,6 +1561,8 @@ Step() {
         infLootDone := false, raidShotDone := false
         lastDmg := "", dmgChanged := A_TickCount, searchTurns := 0, sameReads := 0   ; новий бій - шкоду рахуємо заново
         Stat(lastEntered = "raid" ? "raids" : lastEntered = "dungeon" ? "dimRuns" : "infRuns")                ; ще один забіг у статистику
+        if lastEntered = "raid"
+            raidCountAt := A_TickCount                                    ; counted here: the fight end must not count it again
         raidWalkDue := true                                              ; у новому бою знову підійдемо до боса
         AutoReset()
         learnLeft := 30, comboSeen := false, lastCombo := 0
@@ -2224,7 +2232,7 @@ PickRaidByName(rd, isRaid := true, btn := "i)reate") {
     SetStatus("looking for " rd[3] " in the list")
     ListWheel("Up", 80)                                   ; на початок списку (private server: more raids above the dungeons)
     Sleep 1500                                            ; 4.11: the list keeps sliding after the wheel - OCR read an empty moving list
-    prev := "-", empty := 0
+    prev := "-", empty := 0, same := 0
     Loop 80 {
         lines := OcrRegion(b, true)
         if !lines.Length && ++empty <= 4 {                 ; nothing read: the list is still moving - read again, do not scroll
@@ -2245,8 +2253,12 @@ PickRaidByName(rd, isRaid := true, btn := "i)reate") {
                 return true
             }
         }
-        if all = prev                                     ; список уже не гортається - кінець
+        ; 12.11: on a slow PC the list may not move between two reads - the end only after 3 same reads in a row
+        same := all = prev ? same + 1 : 0
+        if same >= 2                                      ; список уже не гортається - кінець
             break
+        if same
+            Sleep 800                                     ; same rows once: give the slow game time, then scroll again
         prev := all
         ; 4 notches (~half a row): with 10 the title at the bottom edge (its Create still hidden) jumped off the top
         ; on the next step - 4.11 Giant Dimension on the private server was skipped this way
@@ -2280,7 +2292,7 @@ PickRaidByName(rd, isRaid := true, btn := "i)reate") {
 ; Raid entry through Group Finder (7.11): open its tab, find the raid by name, press Easy - the bot queues and the game
 ; teleports into the raid when it opens. While queued the window is not touched (a second click would leave the queue).
 EnterRaidGF(rd, x, y) {
-    static queuedAt := 0, chkAt := 0, shown := true
+    static queuedAt := 0, chkAt := 0, shown := true, queueUntil := 0
     ; after Easy a banner hangs at the top ("Raid opens in 0:17", CANCEL, 7.11 13:59): it is the proof of the queue.
     ; Gone for 15+ s after the click (cancelled, or the raid failed) - queue again.
     if queuedAt {
@@ -2290,7 +2302,8 @@ EnterRaidGF(rd, x, y) {
         }
         ; 7.11 17:03: the banner is also gone when the raid opens (teleport starts) - the bot then scrolled the list with the
         ; mouse wheel in the loading raid = camera zoomed in. So wait 90 s after the click before queueing again.
-        if shown || A_TickCount - queuedAt < 90000 {
+        ; 11.11: a queue made before the full hour waits until 75 s after it (the raid opens at the hour; the list was scrolled in the loading raid)
+        if shown || A_TickCount - queuedAt < 90000 || A_TickCount < queueUntil {
             SetStatus("Group Finder: queued, waiting for the raid")
             return false
         }
@@ -2304,6 +2317,9 @@ EnterRaidGF(rd, x, y) {
     Sleep 2000                                            ; the list loads
     if PickRaidByName(rd, true, "i)Eas|Ea.y|E.sy") {
         queuedAt := A_TickCount
+        queueUntil := 0
+        if Integer(A_Min) >= 50
+            queueUntil := A_TickCount + ((60 - Integer(A_Min)) * 60 - Integer(A_Sec) + 75) * 1000
         Log("  Group Finder: queued for " rd[3])
         return true
     }
@@ -2444,8 +2460,15 @@ RunRoute(route) {
         return
     }
     if kind != "xdim" && running && Num("dimWait", 2000) > 0 {   ; 8.11 (Discord report): the character did not walk, only the skills worked - the game was not ready for movement yet
-        SetStatus("Dimension: first enemies seen, starting the run in " Round(Num("dimWait", 2000) / 1000, 1) " s")
-        Sleep Num("dimWait", 2000)
+        wait := Num("dimWait", 2000)
+        ; 11.11 (player report): after RETRY the giants are seen after ~5 s but the character cannot move yet - the route was played on the spot.
+        ; The run of a RETRY starts no earlier than dimRetryWait (default 10 s) after the RETRY press.
+        if dimRetryAt
+            wait := Max(wait, Num("dimRetryWait", 10000) - (A_TickCount - dimRetryAt))
+        if wait > 0 {
+            SetStatus("Dimension: first enemies seen, starting the run in " Round(wait / 1000, 1) " s")
+            Sleep wait
+        }
     }
     Log("  dungeon route started (method " cfg["dimMethod"] ", " (route == DUNGEON_ROUTE ? "built-in" : "log.txt") ", " route.Length " steps)")
     SetStatus("dungeon: playing the recorded route")
@@ -2808,12 +2831,18 @@ EnsureLoadout(n, onlyCheck := false) {
     bagOpen := cur != 0
     if !running
         return false
-    if cur && cur != n {
-        SetStatus("loadout " cur " -> " n)
+    ; 11.11 (player log): "loadout 1 failed (read: 2)" right after a restart/teleport, the same switch worked a minute later - the list opens slowly.
+    ; A longer wait for the list and one more try at once.
+    Loop 2 {
+        if !(cur && cur != n)
+            break
+        SetStatus("loadout " cur " -> " n (A_Index > 1 ? " (again)" : ""))
         ClickXY(LOADOUT_BOX[1] + LOADOUT_BOX[3] // 2, LOADOUT_BOX[2] + LOADOUT_BOX[4] // 2)
-        Sleep 1000
+        Sleep A_Index = 1 ? 1400 : 2000
         if !running
             return false
+        if failAt || A_Index > 1                          ; a retry: also the picture of the opened list
+            Screenshot("loadout_list")
         ClickXY(LOADOUT_ROWS[n][1], LOADOUT_ROWS[n][2])
         Sleep 1500
         ; одразу після перемикання кнопка часом не читається (28.10 21:40: "Switched to Loadout 3" був,
@@ -2824,6 +2853,9 @@ EnsureLoadout(n, onlyCheck := false) {
             Sleep 700
         }
     }
+    ; 11.11: the picture of a failed switch is taken here, with the Bag as the bot sees it, before it is closed (it was taken after and showed nothing)
+    if cur != n
+        Screenshot("loadout_bag")
     if bagOpen                                            ; Bag відкритий - закриваємо (навіть якщо не прочитали)
         ClickXY(BAG_CLOSE[1], BAG_CLOSE[2])
     ParkMouse()
@@ -2837,7 +2869,6 @@ EnsureLoadout(n, onlyCheck := false) {
             curLoadout := cur
         failAt := A_TickCount, failWait := cur && n != 1 ? 600000 : 60000, failN := n   ; для рейду (1) і з прочитаним номером - теж 1 min
         Log("  loadout " n " failed (read: " (cur ? cur : bagOpen ? "nothing after switching" : "Bag did not open") ") - retrying in " failWait // 60000 " min")
-        Screenshot("loadout")
     }
 }
 

@@ -235,6 +235,12 @@ SetupRun() {
     setupRes := SetupChecks(true), setupRan := true
     for it in setupRes
         Log("setup check: " it.state " - " it.name (it.fix != "" ? " (" it.fix ")" : ""))
+    ; 11.11: the screen as it was when the check ran: one fixed file, Send_Report.bat always packs it
+    try {
+        DirCreate SHOTDIR
+        if SaveRegion(SHOTDIR "setup_check.jpg", 0, 0, 1920, 1080) = 0
+            Log("  setup check screenshot: " SHOTDIR "setup_check.jpg")
+    }
     SetStatus("Setup check done")
 }
 
