@@ -8,7 +8,8 @@
 ; Export = the run as one file runs\<name>.adrun (send it to a friend), Import = open such a file here (Save to keep it).
 ; A run is a folder with log.txt (the bot plays it). Folder given as the first argument = opened from the bot (F7 records into it).
 ; log.txt line: seconds since start, kind, a, b, (colour, kept empty), screenshot number
-;   kinds: mm (mouse moved by a, b), ld lu (left button down/up), rd ru (right), up dn (wheel) - a, b = x, y;
+;   kinds: mm (mouse moved by a, b), ld lu (left button down/up), rd ru (right), md mu (middle), x1d x1u x2d x2u (side buttons),
+;   up dn (wheel) - a, b = x, y;
 ;   kd ku (key down/up) - a = key code vkXXscYYY (layout independent), b = key name; kp (key press) - same, 5th column = hold ms.
 ; The list is filled by a timer, never inside the key / mouse handlers: a slow handler makes Windows drop the hook (the old recorder
 ; stopped recording at ~130-370 rows because of that).
@@ -20,12 +21,14 @@ ROOT := A_ScriptDir "\rec\"
 RUNS := A_ScriptDir "\..\runs\"
 INI := A_ScriptDir "\..\raid.ini"
 GAME := "ahk_exe RobloxPlayerBeta.exe"
-OPS := " kd ku kp mm up dn ld lu rd ru wait "
-rec := false, playing := false, dir := "", held := Map(), lastAt := 0, shotAt := 0, shots := 0
-steps := [], shown := 0, recMs := 0, curRow := 0, markRow := 0, mdx := 0, mdy := 0
+OPS := " kd ku kp mm up dn ld lu rd ru md mu x1d x1u x2d x2u wait "
+BUTTONS := Map("l", "Left", "r", "Right", "m", "Middle", "x1", "X1", "x2", "X2")
+rec := false, playing := false, dir := "", held := Map(), recStart := 0, shotAt := 0, shots := 0
+steps := [], shown := 0, recMs := 0, curRow := 0, markRow := 0, mdx := 0, mdy := 0, absX := "", absY := ""
 recSens := "", carryX := 0, carryY := 0                   ; recSens: sensitivity the run was recorded with ("" = this PC now, "0" = an old file without it)
+recPtr := ""                                              ; Windows pointer settings of the recording PC ("t1 t2 accel speed"), "" = unknown (old file)
+mskip := Map(), absSeen := false, ptrWas := "", playDown := Map()             ; ptrWas: the settings to put back after a replay (also on exit)
 mySens := ReadSens()                                      ; Roblox sensitivity x100 (0.36 = 36)
-shotQ := [], shooting := false
 
 ; ---- window ----
 gw := Gui("+AlwaysOnTop", "Recorder v2")
@@ -60,6 +63,7 @@ Btn("x+4 w96", "Run = my sens", (*) => TagRun())
 shotsCb := gw.AddCheckbox("x+14 yp+4 -Theme Background12101C cDDDDDD", "Screenshots")
 status := gw.AddText("xm y+8 w520", "")
 gw.OnEvent("Close", (*) => ExitApp())
+OnExit(AfterPlay)                                         ; closed (or restarted by the bot) in the middle of a replay
 gw.Show("x" (A_ScreenWidth - 560) " y40")
 argDir := A_Args.Length && DirExist(A_Args[1]) ? RTrim(A_Args[1], "\") "\" : ""
 if argDir != "" {                                         ; opened from the bot: its Dimension run
@@ -75,7 +79,8 @@ rid := Buffer(16, 0)
 NumPut("ushort", 1, "ushort", 2, "uint", 0x100, "ptr", gu.Hwnd, rid)     ; generic desktop / mouse, RIDEV_INPUTSINK
 DllCall("RegisterRawInputDevices", "ptr", rid, "uint", 1, "uint", 16)
 OnMessage(0x00FF, RawIn)
-SetTimer(FlushMove, 25)
+SetTimer(FlushMove, 8)                                    ; 13.11: small steps (was 25 ms -> 31 ms chunks; Windows runs this one every ~16 ms)
+SetTimer(CheckHeld, 250)
 SetTimer(Drain, 250)
 
 ; 13.11 (players: "actions get lost, worse than TinyTask"): InputHook("V") kept the typed text with the default limit of 1023 characters
@@ -98,6 +103,12 @@ F10:: MarkHere()
 ~*LButton up:: Mouse("lu")
 ~*RButton:: Mouse("rd")
 ~*RButton up:: Mouse("ru")
+~*MButton:: Mouse("md")
+~*MButton up:: Mouse("mu")
+~*XButton1:: Mouse("x1d")
+~*XButton1 up:: Mouse("x1u")
+~*XButton2:: Mouse("x2d")
+~*XButton2 up:: Mouse("x2u")
 ~*WheelUp:: Mouse("up")
 ~*WheelDown:: Mouse("dn")
 
@@ -117,17 +128,18 @@ Btn(opt, label, fn) {
 ; ---- Roblox sensitivity ----
 ReadSens() {
     v := Trim(IniRead(INI, "raid", "camSens", ""))            ; no default: 36 is the author's sensitivity, not yours (0 = not set yet)
-    return IsInteger(v) && v >= 1 && v <= 200 ? Integer(v) : 0
+    return IsInteger(v) && v >= 1 && v <= 1000 ? Integer(v) : 0
 }
 FmtSens(n) => n ? Format("{:.2f}", n / 100) : ""
 
-; the field -> mySens and raid.ini camSens (the bot uses the same number); 0.36 or 36 both work
+; the field -> mySens and raid.ini camSens (the bot uses the same number x100)
+; 13.11: the number is read as in Roblox (0.36, 3, 3.5 = 0.36, 3.00, 3.50; was: 3 -> 0.03, 2.5 rejected); above 10 = the old x100 form (36 = 0.36)
 CommitSens() {
     global mySens
     v := Trim(StrReplace(sensEd.Value, ",", "."))
     if IsNumber(v) {
-        n := Number(v) < 3 ? Round(Number(v) * 100) : Round(Number(v))
-        if n >= 1 && n <= 200 && n != mySens {
+        n := Number(v) <= 10 ? Round(Number(v) * 100) : Round(Number(v))
+        if n >= 1 && n <= 1000 && n != mySens {
             mySens := n
             try IniWrite(n, INI, "raid", "camSens")
         }
@@ -150,6 +162,76 @@ MoveBy(dx, dy) {
     DllCall("mouse_event", "uint", 1, "int", dx, "int", dy, "uint", 0, "ptr", 0)
 }
 
+; Windows pointer settings "t1 t2 accel speed" (Enhance pointer precision = accel 1). Recorded counts are raw (before Windows scales
+; them), a replayed move goes through that scaling: the replay runs with the recording PC's settings, so a turn is the same.
+PtrNow() {
+    m := Buffer(12, 0), s := 10
+    DllCall("SystemParametersInfo", "uint", 0x03, "uint", 0, "ptr", m, "uint", 0)         ; SPI_GETMOUSE
+    DllCall("SystemParametersInfo", "uint", 0x70, "uint", 0, "int*", &s, "uint", 0)       ; SPI_GETMOUSESPEED
+    return NumGet(m, 0, "int") " " NumGet(m, 4, "int") " " NumGet(m, 8, "int") " " s
+}
+; for this session only (fWinIni 0: not written to the profile - a crash leaves it until the next sign-in at most)
+SetPtr(v) {
+    p := StrSplit(v, " ")
+    if p.Length != 4
+        return
+    m := Buffer(12, 0)
+    NumPut("int", Integer(p[1]), "int", Integer(p[2]), "int", Integer(p[3]), m)
+    DllCall("SystemParametersInfo", "uint", 0x04, "uint", 0, "ptr", m, "uint", 0)         ; SPI_SETMOUSE
+    DllCall("SystemParametersInfo", "uint", 0x71, "uint", 0, "ptr", Integer(p[4]), "uint", 0)   ; SPI_SETMOUSESPEED
+}
+
+; ms with sub-ms precision (A_TickCount moves in 15.6 ms steps)
+NowMs() {
+    static f := 0
+    if !f
+        DllCall("QueryPerformanceFrequency", "int64*", &f)
+    DllCall("QueryPerformanceCounter", "int64*", &c := 0)
+    return c * 1000 / f
+}
+
+; Roblox holds the cursor in the middle of the game while the camera is locked (shift-lock / right button): the cursor is there NOW
+; and the press was recorded there too (a menu button in the middle with a free cursor: the cursor is elsewhere, so it is moved)
+NearCenter(x, y) {
+    try {
+        WinGetClientPos &cx, &cy, &cw, &ch, GAME
+        MouseGetPos &mx, &my
+        mx0 := cx + cw // 2, my0 := cy + ch // 2
+        return Abs(mx - mx0) <= 40 && Abs(my - my0) <= 40 && Abs(x - mx0) <= 40 && Abs(y - my0) <= 40
+    }
+    return false
+}
+
+; the pointer settings and mouse buttons after a replay (also when the Recorder is closed in the middle of one)
+AfterPlay(*) {
+    global ptrWas
+    if playing {
+        for k in playDown
+            Send "{" k " up}"
+        for b in ["LButton", "RButton", "MButton", "XButton1", "XButton2"]
+            if GetKeyState(b)
+                Send "{" b " up}"
+    }
+    if ptrWas != "" && PtrNow() != ptrWas
+        SetPtr(ptrWas)
+    ptrWas := ""
+}
+
+; a button press at x, y. Roblox needs a mouse move just before it. 13.11 ("the mouse flies up"): with the cursor locked in the
+; middle every jump to the recorded x, y (a few px off the centre) turned the camera - there a move of 2 px and back (net 0) instead.
+PressAt(x, y) {
+    if NearCenter(x, y) {
+        DllCall("mouse_event", "uint", 1, "int", 2, "int", 0, "uint", 0, "ptr", 0)
+        Sleep 8
+        DllCall("mouse_event", "uint", 1, "int", -2, "int", 0, "uint", 0, "ptr", 0)
+    } else {
+        MouseMove x + 6, y + 6, 0
+        Sleep 8
+        MouseMove x, y, 0
+    }
+    Sleep 16                                                  ; one game frame (was 100 ms: every click came late)
+}
+
 UpdateInfo() {
     if !mySens
         info.Value := "Type your Roblox sensitivity (Roblox Settings > Camera) in the field above before recording."
@@ -167,7 +249,7 @@ UpdateInfo() {
 
 ; ---- recording ----
 RawIn(wParam, lParam, msg, hwnd) {
-    global mdx, mdy
+    global mdx, mdy, absX, absY, absSeen
     static hdr := A_PtrSize * 2 + 8, buf := Buffer(128, 0)     ; one buffer for all messages: a 1000 Hz mouse sends 1000 of them a second
     Critical
     if !rec
@@ -175,27 +257,49 @@ RawIn(wParam, lParam, msg, hwnd) {
     size := buf.Size
     if DllCall("GetRawInputData", "ptr", lParam, "uint", 0x10000003, "ptr", buf, "uint*", &size, "uint", hdr) = -1
         return
-    if NumGet(buf, 0, "uint") != 0 || NumGet(buf, hdr, "ushort") & 1       ; not a mouse / absolute position
+    if NumGet(buf, 0, "uint") != 0                            ; not a mouse
         return
-    mdx += NumGet(buf, hdr + 12, "int"), mdy += NumGet(buf, hdr + 16, "int")
+    fl := NumGet(buf, hdr, "ushort"), x := NumGet(buf, hdr + 12, "int"), y := NumGet(buf, hdr + 16, "int")
+    if fl & 1 {
+        ; 13.11: MOUSE_MOVE_ABSOLUTE (RDP, virtual machines, Parsec, tablets) was dropped - no camera turn was recorded there.
+        ; 0..65535 over the screen (over all screens with flag 2): the change since the last one, in px
+        w := fl & 2 ? SysGet(78) : A_ScreenWidth, h := fl & 2 ? SysGet(79) : A_ScreenHeight
+        px := x * w / 65535, py := y * h / 65535
+        if absX != ""
+            mdx += px - absX, mdy += py - absY
+        absX := px, absY := py, absSeen := true
+    } else
+        mdx += x, mdy += y
 }
 
-; collected movement -> one step (every 25 ms while the mouse moves)
+; collected movement -> one step (every 8 ms while the mouse moves); a part of a px (absolute input) waits for the next one
 FlushMove() {
     global mdx, mdy
     Critical                                                  ; a handler must not run Push in the middle of this one (the same move twice)
-    if rec && (mdx || mdy)
-        Push("mm", mdx, mdy)
-    mdx := 0, mdy := 0
-    ; a key that is no longer down but has no "key up" row (the up was missed): add it now, else every later press of it is skipped
-    if rec
-        for code in held.Clone()
-            if !GetKeyState(SubStr(code, 1, 4), "P")
-                held.Delete(code), Push("ku", code, GetKeyName(code))
+    if !rec {
+        mdx := 0, mdy := 0
+        return
+    }
+    dx := Round(mdx), dy := Round(mdy)
+    if dx || dy
+        Push("mm", dx, dy)
+    mdx -= dx, mdy -= dy
+}
+
+; a key held for over 0.5 s that is up now but has no "key up" row (the up was missed): add it now, else every later press of it
+; is skipped. 13.11: this ran inside KeyDown too and wrote "key up" before "key down" for quick taps and for keys sent by programs
+; (their physical state is always up) - now only old keys, and the logical state counts as well.
+CheckHeld() {
+    Critical
+    if !rec
+        return
+    for code, at in held.Clone()
+        if NowMs() - at > 500 && !GetKeyState(SubStr(code, 1, 4)) && !GetKeyState(SubStr(code, 1, 4), "P")
+            held.Delete(code), Add("ku", code, GetKeyName(code))
 }
 
 ToggleRec() {
-    global rec, dir, shots, held, lastAt, steps, recMs, recSens, shown
+    global rec, dir, shots, held, recStart, steps, recMs, recSens, shown, recPtr, absX, absY, mdx, mdy, mskip, absSeen
     if playing
         return
     CommitSens()
@@ -207,15 +311,20 @@ ToggleRec() {
     rec := !rec
     if rec {
         recSens := String(mySens)                             ; a new recording is made with this sensitivity (the field may change while recording)
+        recPtr := PtrNow()
+        DllCall("winmm\timeBeginPeriod", "uint", 1)           ; the 8 ms move timer really runs every 8 ms
         dir := argDir != "" ? argDir : ROOT FormatTime(, "yyyyMMdd_HHmmss") "\"   ; from the bot: the new run replaces its log.txt
         DirCreate dir
         if FileExist(dir "log.txt")                           ; the run that is there stays (an accidental F7 F7 must not wipe it)
             FileCopy dir "log.txt", dir "log.before_rec_" FormatTime(, "yyyyMMdd_HHmmss") ".txt", 1
-        shots := 0, lastAt := A_TickCount, held := Map(), steps := [], recMs := 0, shown := 0
+        shots := 0, recStart := NowMs(), held := Map(), steps := [], recMs := 0, shown := 0, absX := "", absY := "", mdx := 0, mdy := 0, mskip := Map(), absSeen := false
         lv.Delete()
         UpdateInfo()
         Say("REC...  (F7 = stop)")
     } else {
+        DllCall("winmm\timeEndPeriod", "uint", 1)
+        if absSeen                                            ; absolute input (RDP...): the moves are screen px already - played 1:1
+            recPtr := "0 0 0 10"
         Fill()
         Save()
         Say("REC stopped: " steps.Length " steps -> " dir)
@@ -227,17 +336,27 @@ Mouse(kind) {
     if !rec
         return
     MouseGetPos &x, &y, &win
-    try if WinGetPID("ahk_id " win) = ProcessExist()          ; clicks on our own window (Rec F7 to stop) are not part of the run
+    own := false
+    try own := WinGetPID("ahk_id " win) = ProcessExist()      ; clicks on our own window (Rec F7 to stop) are not part of the run
+    btn := SubStr(kind, 1, -1), last := SubStr(kind, -1)      ; ld -> l, d; x1u -> x1, u; wheel: up / dn
+    if last = "u" {
+        ; 13.11: a release over this window was dropped and the button stayed held in the replay - a release goes in when its press did
+        if mskip.Has(btn)                                     ; mskip: buttons pressed on our own window (cleared at F7)
+            return mskip.Delete(btn)
+    } else if own {
+        if last = "d"
+            mskip[btn] := true
         return
-    Add(kind, x, y, kind = "ld" || kind = "rd")
+    }
+    Add(kind, x, y, last = "d")
 }
 
 KeyDown(ih, vk, sc) {
     Critical
     name := GetKeyName(Format("vk{:x}sc{:x}", vk, sc)), code := Format("vk{:02X}sc{:03X}", vk, sc)
-    if !rec || name ~= "^F(7|8|9|10)$" || held.Has(code)         ; held: ignore auto-repeat
+    if !rec || name ~= "^F(7|8|9|10)$" || held.Has(code)         ; held: ignore auto-repeat (a key held since before F7 goes in at its 1st repeat)
         return
-    held[code] := true
+    held[code] := NowMs()
     Add("kd", code, name, true)
 }
 
@@ -264,31 +383,22 @@ Add(kind, a, b := "", shot := false) {
         QueueShot(dir num ".png")
 }
 
-; a screenshot (~0.3 s) runs from a timer, one at a time, never inside a handler
+; a screenshot (~0.3 s to save a PNG) in another process. 13.11: here it held up the recording - keys and moves of those 0.3 s
+; got squeezed together in time.
 QueueShot(file) {
-    shotQ.Push(file)
-    SetTimer(DoShots, -10)
-}
-
-DoShots() {
-    global shooting
-    if shooting
-        return
-    shooting := true
-    while shotQ.Length
-        SaveRegion(shotQ.RemoveAt(1), 0, 0, A_ScreenWidth, A_ScreenHeight)
-    shooting := false
+    try Run('"' A_AhkPath '" "' A_ScriptDir '\RecShot.ahk" "' file '"')
 }
 
 Push(kind, a, b := "", num := "") {
-    global lastAt, recMs
-    st := {w: A_TickCount - lastAt, k: kind, a: a, b: b, c: "", s: num, h: 0, t: 0}
-    lastAt := A_TickCount
+    global recMs
+    ms := Round(NowMs() - recStart)                           ; 13.11: exact ms (A_TickCount gave 15.6 ms steps); w adds up to ms exactly
+    st := {w: Max(0, ms - recMs), k: kind, a: a, b: b, c: "", s: num, h: 0, t: 0}
     recMs += st.w
     st.t := recMs
     steps.Push(st)
-    if Mod(steps.Length, 25) = 0                              ; a long recording is kept on disk as it goes (log.partial.txt)
-        SetTimer(SavePartial, -50)
+    static partAt := 0
+    if A_TickCount - partAt > 3000                            ; a long recording is kept on disk as it goes (log.partial.txt), every 3 s
+        partAt := A_TickCount, SetTimer(SavePartial, -50)
 }
 
 ; new steps -> the list, in one go every 250 ms (not inside the handlers)
@@ -324,6 +434,7 @@ KeyLabel(st) {
 ; list columns of a step (after "#"): time s, wait ms, action, key, hold ms; at = ms from the start
 Row(st, at) {
     names := Map("mm", "mouse move", "ld", "left down", "lu", "left up", "rd", "right down", "ru", "right up",
+        "md", "middle down", "mu", "middle up", "x1d", "side 1 down", "x1u", "side 1 up", "x2d", "side 2 down", "x2u", "side 2 up",
         "up", "wheel up", "dn", "wheel down", "kd", "key down", "ku", "key up", "kp", "key press", "wait", "WAIT")
     if st.k = "kd" || st.k = "ku" || st.k = "kp"
         label := KeyLabel(st)
@@ -395,7 +506,7 @@ MarkHere() {
 }
 
 Play(from, to) {
-    global playing, curRow, markRow, carryX, carryY
+    global playing, curRow, markRow, carryX, carryY, ptrWas, playDown
     if rec || playing || !steps.Length
         return
     CommitSens()
@@ -404,19 +515,22 @@ Play(from, to) {
     carryX := 0, carryY := 0
     if WinExist(GAME)
         WinActivate GAME                                      ; keys go to the game, not to this window
+    ptrWas := PtrNow()
+    if recPtr != "" && recPtr != ptrWas
+        SetPtr(recPtr)                                        ; back below, after the replay
     Sleep 300
-    down := Map()
+    down := playDown := Map()                                 ; global: AfterPlay releases it when the Recorder is closed mid-replay
     i := from
     ; times are kept against the replay start, not added up from Sleep (Sleep 20 really sleeps ~31 ms): with a 1 ms timer
     ; each step is within a few ms of the recording
     DllCall("winmm\timeBeginPeriod", "uint", 1)
-    t0 := A_TickCount, due := 0
+    t0 := NowMs(), due := 0                                   ; 13.11: QPC ms (A_TickCount moves in 15.6 ms steps even with a 1 ms timer)
     while playing && i <= to && i <= steps.Length {
         st := steps[i], curRow := i                           ; read now: rows edited during the replay count
         sp := Max(10, Integer("0" spd.Value))
         due += st.w * 100 / sp
-        while playing && A_TickCount - t0 < due - 1           ; short sleeps, so a stop is noticed at once
-            Sleep Min(10, due - (A_TickCount - t0))
+        while playing && NowMs() - t0 < due                   ; short sleeps, so a stop is noticed at once
+            Sleep Min(10, Max(1, Floor(due - (NowMs() - t0)) - 1))
         lv.Modify(0, "-Select")
         lv.Modify(i, "Select Vis")
         Say("playing " i " / " to)
@@ -426,8 +540,8 @@ Play(from, to) {
             Send "{" st.a " down}"
             down[st.a] := true
             due += st.h * 100 / sp
-            while playing && A_TickCount - t0 < due - 1
-                Sleep Min(10, due - (A_TickCount - t0))
+            while playing && NowMs() - t0 < due
+                Sleep Min(10, Max(1, Floor(due - (NowMs() - t0)) - 1))
             Send "{" st.a " up}"
             if down.Has(st.a)
                 down.Delete(st.a)
@@ -437,8 +551,7 @@ Play(from, to) {
     }
     for k in down                                             ; stopped in the middle: release everything still held
         Send "{" k " up}"
-    Click "Left Up"
-    Click "Right Up"
+    AfterPlay()
     DllCall("winmm\timeEndPeriod", "uint", 1)
     playing := false
     if markRow {                                              ; F10: show the row, ready for Wait +100
@@ -466,27 +579,18 @@ Do(st, down) {
         default:
             if st.k = "up" || st.k = "dn" {                   ; wheel: a tiny move there and back (net 0). An absolute MouseMove to the recorded x, y turned the camera
                 DllCall("mouse_event", "uint", 1, "int", 3, "int", 0, "uint", 0, "ptr", 0)
-                Sleep 40
+                Sleep 8
                 DllCall("mouse_event", "uint", 1, "int", -3, "int", 0, "uint", 0, "ptr", 0)
-                Sleep 60
+                Sleep 16
                 Send st.k = "up" ? "{WheelUp}" : "{WheelDown}"
                 return
             }
-            x := Integer(st.a), y := Integer(st.b)
-            if st.k = "ld" || st.k = "rd" {                   ; 13.11: only before a press; a jump to x, y while the right button holds the camera turned it
-                MouseMove x + 6, y + 6, 0                     ; Roblox needs mouse movement before a click
-                Sleep 40
-                MouseMove x, y, 0
-                Sleep 60
-            }
-            switch st.k {
-                case "ld": Click "Left Down"
-                case "lu": Click "Left Up"
-                case "rd": Click "Right Down"
-                case "ru": Click "Right Up"
-                case "up": Send "{WheelUp}"
-                case "dn": Send "{WheelDown}"
-            }
+            b := SubStr(st.k, 1, -1), d := SubStr(st.k, -1) = "d"
+            if !BUTTONS.Has(b)
+                return
+            if d && IsInteger(st.a) && IsInteger(st.b)        ; only before a press: a jump while a button holds the camera turned it
+                PressAt(Integer(st.a), Integer(st.b))
+            Click BUTTONS[b] (d ? " Down" : " Up")
     }
 }
 
@@ -664,7 +768,7 @@ Save() {
 
 ; forgot to set the sensitivity before recording: mark the opened run as recorded at the one in the field (no new recording needed)
 TagRun() {
-    global recSens
+    global recSens, recPtr
     CommitSens()
     if !steps.Length || playing || rec
         return
@@ -675,6 +779,8 @@ TagRun() {
     if MsgBox("Mark this run as recorded at sensitivity " FmtSens(mySens) "?`n`nUse it only when it was recorded at exactly this sensitivity.", "Recorder", "YesNo Icon? 4096") != "Yes"
         return
     recSens := String(mySens)
+    if recPtr != "0 0 0 10"                                  ; recorded over RDP (1:1) stays 1:1
+        recPtr := PtrNow()
     Save()
 }
 
@@ -684,6 +790,8 @@ LogText() {
     s := recSens = "" ? mySens : recSens                      ; opened from a file: its own sensitivity stays (an edit does not change who recorded it)
     if s != "0"
         out .= "; sens " s "`n"
+    if recPtr != ""
+        out .= "; ptr " recPtr "`n"
     for st in steps {
         t += st.w                                             ; t = the moment of the step (for kp: the press)
         out .= Format("{:.3f}", t / 1000) "," st.k "," st.a "," StrReplace(st.b, ",", "Comma") "," (st.k = "kp" ? st.h : st.c) "," st.s "`n"   ; key name "," would split the line
@@ -717,16 +825,17 @@ ParseLog(txt) {
         } else
             merged.Push(st), i += 1
     }
-    return {steps: merged, sens: RegExMatch(txt, "m)^; sens (\d+)", &m) ? m[1] : "0"}
+    return {steps: merged, sens: RegExMatch(txt, "m)^; sens (\d+)", &m) ? m[1] : "0",
+        ptr: RegExMatch(txt, "m)^; ptr (-?\d+ -?\d+ -?\d+ \d+)", &pm) ? pm[1] : ""}
 }
 
 Load(folder) {
-    global dir, steps, recSens
+    global dir, steps, recSens, recPtr
     if !FileExist(folder "\log.txt")
         return false
     dir := RTrim(folder, "\") "\"
     r := ParseLog(FileRead(dir "log.txt"))
-    steps := r.steps, recSens := r.sens
+    steps := r.steps, recSens := r.sens, recPtr := r.ptr
     Fill()
     Say("opened: " dir " (" steps.Length " steps)")
     return true
@@ -771,7 +880,7 @@ ExportRun() {
 }
 
 ImportRun() {
-    global steps, recSens
+    global steps, recSens, recPtr
     if rec || playing
         return
     gw.Opt("+OwnDialogs")
@@ -797,36 +906,8 @@ ImportRun() {
         return
     if dir != "" && FileExist(dir "log.txt")
         FileCopy dir "log.txt", dir "log.before_import_" FormatTime(, "yyyyMMdd_HHmmss") ".txt", 1   ; the run that was here before stays
-    steps := r.steps, recSens := r.sens
+    steps := r.steps, recSens := r.sens, recPtr := r.ptr
     Fill()
     UpdateInfo()
     Say("imported " steps.Length " steps - Save to keep it (the old run: log.before_import_*.txt)")
-}
-
-; screen region -> PNG (GDI + GDI+); returns 0 when saved
-SaveRegion(file, sx, sy, w, h) {
-    try {
-        sdc := DllCall("GetDC", "ptr", 0, "ptr")
-        mdc := DllCall("CreateCompatibleDC", "ptr", sdc, "ptr")
-        hbm := DllCall("CreateCompatibleBitmap", "ptr", sdc, "int", w, "int", h, "ptr")
-        old := DllCall("SelectObject", "ptr", mdc, "ptr", hbm, "ptr")
-        DllCall("BitBlt", "ptr", mdc, "int", 0, "int", 0, "int", w, "int", h, "ptr", sdc, "int", sx, "int", sy, "uint", 0x40CC0020)
-        DllCall("SelectObject", "ptr", mdc, "ptr", old)
-        DllCall("DeleteDC", "ptr", mdc)
-        DllCall("ReleaseDC", "ptr", 0, "ptr", sdc)
-        if !DllCall("GetModuleHandle", "str", "gdiplus", "ptr")
-            DllCall("LoadLibrary", "str", "gdiplus")
-        si := Buffer(24, 0)
-        NumPut("uint", 1, si)
-        DllCall("gdiplus\GdiplusStartup", "ptr*", &token := 0, "ptr", si, "ptr", 0)
-        DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "ptr", hbm, "ptr", 0, "ptr*", &bmp := 0)
-        clsid := Buffer(16)
-        DllCall("ole32\CLSIDFromString", "wstr", "{557CF406-1A04-11D3-9A73-0000F81EF32E}", "ptr", clsid)
-        res := DllCall("gdiplus\GdipSaveImageToFile", "ptr", bmp, "wstr", file, "ptr", clsid, "ptr", 0)
-        DllCall("gdiplus\GdipDisposeImage", "ptr", bmp)
-        DllCall("gdiplus\GdiplusShutdown", "ptr", token)
-        DllCall("DeleteObject", "ptr", hbm)
-        return res
-    }
-    return -1
 }

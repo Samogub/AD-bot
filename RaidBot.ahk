@@ -250,6 +250,8 @@ afterRespawn := false    ; після респавну Combo ще не було 
 comboSeen  := false      ; у цьому рейді вже бачили напис "N Combo!" (значить, його розпізнавання працює)
 lastCombo  := 0          ; коли востаннє бачили "Combo!" (= удари влучають)
 lastComboCheck := 0
+routeDown := Map()                                       ; keys a recorded run holds now (RouteCleanup releases them on exit too)
+routePtrWas := ""                                        ; pointer settings to put back after a recorded run ("" = none changed)
 problemNote := "", problemNoted := Map()                 ; ProblemWatch (below Stop): the same trouble again and again
 ; Safe mode (0.4.0): a mode that keeps failing is paused, the game is restarted, the other modes go on (see SafeRun below)
 safePauses := Map(), safePauseAt := Map()                    ; Safe mode: pauses in a row per mode / time of the last pause
@@ -1057,6 +1059,7 @@ BeforeExit(*) {
     running := false
     Heartbeat()                                           ; closed on purpose (window X, F3, a new copy): the watchdog must not start it again
     ReleaseKeys()
+    RouteCleanup()                                        ; closed in the middle of a recorded run: mouse buttons, pointer settings
     OcrServerKill()
     DllCall("SetThreadExecutionState", "uint", 0x80000000)
     return 0                                 ; 0 = дозволити вихід (ненульове значення скасувало б вихід)
@@ -2671,37 +2674,37 @@ RunRoute(route) {
     Log("  dungeon route started (method " cfg["dimMethod"] ", " (route == DUNGEON_ROUTE ? "built-in" : kind = "xdim" ? DimDir() "log.txt" : "log.txt") ", " route.Length " steps)")
     SetStatus("dungeon: playing the recorded route")
     DllCall("winmm\timeBeginPeriod", "uint", 1)
-    t0 := A_TickCount, down := Map()
+    global routePtrWas, routeDown
+    t0 := NowMs(), down := routeDown := Map()                          ; 13.11: QPC ms (A_TickCount moves in 15.6 ms steps)
     for st in route {
         due := st[1] + shift
-        while running && A_TickCount - t0 < due - 1
-            Sleep Min(10, due - (A_TickCount - t0))
+        while running && NowMs() - t0 < due
+            Sleep Min(10, Max(1, Floor(due - (NowMs() - t0)) - 1))
         if !running
             break
+        if st[2] = "ptr" {                                ; the recording PC's pointer settings for the replay (back below)
+            routePtrWas := PtrNow()
+            if st[3] != routePtrWas
+                SetPtr(st[3])
+            continue
+        }
         if st[2] = "mm" {
             DllCall("mouse_event", "uint", 1, "int", Integer(st[3]), "int", Integer(st[4]), "uint", 0, "ptr", 0)
             continue
         }
-        if InStr(" up dn ld lu rd ru ", " " st[2] " ") {      ; wheel and clicks from the Recorder: at x, y (3, 4); Roblox needs a mouse move first
-            if (st[2] = "up" || st[2] = "dn") {               ; wheel: a tiny move there and back (net 0); an absolute MouseMove turned the camera
-                DllCall("mouse_event", "uint", 1, "int", 3, "int", 0, "uint", 0, "ptr", 0)
-                Sleep 40
-                DllCall("mouse_event", "uint", 1, "int", -3, "int", 0, "uint", 0, "ptr", 0)
-                Sleep 60
-            } else if (st[2] = "ld" || st[2] = "rd") && IsInteger(st[3]) && IsInteger(st[4]) {   ; 13.11: not before a release (it turned the held camera)
-                MouseMove Integer(st[3]) + 6, Integer(st[4]) + 6, 0
-                Sleep 40
-                MouseMove Integer(st[3]), Integer(st[4]), 0
-                Sleep 60
-            }
-            switch st[2] {
-                case "up": Send "{WheelUp}"
-                case "dn": Send "{WheelDown}"
-                case "ld": Click "Left Down"
-                case "lu": Click "Left Up"
-                case "rd": Click "Right Down"
-                case "ru": Click "Right Up"
-            }
+        if (st[2] = "up" || st[2] = "dn") {                   ; wheel: a tiny move there and back (net 0); an absolute MouseMove turned the camera
+            DllCall("mouse_event", "uint", 1, "int", 3, "int", 0, "uint", 0, "ptr", 0)
+            Sleep 8
+            DllCall("mouse_event", "uint", 1, "int", -3, "int", 0, "uint", 0, "ptr", 0)
+            Sleep 16
+            Send st[2] = "up" ? "{WheelUp}" : "{WheelDown}"
+            continue
+        }
+        if RouteBtn().Has(b := SubStr(st[2], 1, -1)) {          ; buttons from the Recorder: ld lu rd ru md mu x1d x1u x2d x2u at x, y (3, 4)
+            d := SubStr(st[2], -1) = "d"
+            if d && IsInteger(st[3]) && IsInteger(st[4])      ; 13.11: not before a release (it turned the held camera)
+                PressAt(Integer(st[3]), Integer(st[4]))
+            Click RouteBtn()[b] (d ? " Down" : " Up")
             continue
         }
         SendInput "{" st[3] (st[2] = "kd" ? " down}" : " up}")
@@ -2710,10 +2713,9 @@ RunRoute(route) {
         else if down.Has(st[3])
             down.Delete(st[3])
     }
-    for k in down                                         ; stopped in the middle: release what is still held
-        SendInput "{" k " up}"
+    RouteCleanup()
     DllCall("winmm\timeEndPeriod", "uint", 1)
-    Log("  dungeon route " (running ? "done in " Round((A_TickCount - t0) / 1000, 1) " s" : "stopped"))
+    Log("  dungeon route " (running ? "done in " Round((NowMs() - t0) / 1000, 1) " s" : "stopped"))
 }
 
 ; The run to play: dimension\giant\log.txt when it is there (edited in the Recorder from the Dimension page; read
@@ -2752,7 +2754,7 @@ DimRoute(kind := "", today := false) {
         Log("  run scaled x" Round(f, 2) " for your mouse sensitivity (" file ")")
     for line in StrSplit(txt, "`n", "`r") {
         p := StrSplit(line, ",")
-        if p.Length < 3 || SubStr(line, 1, 1) = ";" || !(p[2] = "kd" || p[2] = "ku" || p[2] = "mm" || p[2] = "kp" || InStr(" up dn ld lu rd ru ", " " p[2] " "))
+        if p.Length < 3 || SubStr(line, 1, 1) = ";" || !(p[2] = "kd" || p[2] = "ku" || p[2] = "mm" || p[2] = "kp" || InStr(" up dn ld lu rd ru md mu x1d x1u x2d x2u ", " " p[2] " "))
             continue
         if !IsNumber(Trim(p[1])) {                        ; one bad line is skipped, not the rest of the run
             Log("  WARNING: log.txt line skipped (bad time): " line)
@@ -2780,8 +2782,83 @@ DimRoute(kind := "", today := false) {
         r[j + 1] := x
         i++
     }
+    if r.Length && RegExMatch(txt, "m)^; ptr (-?\d+ -?\d+ -?\d+ \d+)", &pm)
+        r.InsertAt(1, [0, "ptr", pm[1], ""])              ; RunRoute: Windows pointer settings of the recording PC
     at := t, atMethod := method, atSens := sens, route := r.Length ? r : fb
     return route
+}
+
+; after a recorded run (and on exit in the middle of one): 13.11 a held right button kept turning the camera at every menu move;
+; the pointer settings of the run go back to yours
+RouteCleanup() {
+    global routePtrWas, routeDown
+    for k in routeDown                                    ; stopped in the middle: release what is still held
+        SendInput "{" k " up}"
+    routeDown := Map()
+    for b in ["LButton", "RButton", "MButton", "XButton1", "XButton2"]
+        if GetKeyState(b)
+            SendInput "{" b " up}"
+    if routePtrWas != "" && PtrNow() != routePtrWas
+        SetPtr(routePtrWas)
+    routePtrWas := ""
+}
+
+; ms with sub-ms precision (QueryPerformanceCounter)
+NowMs() {
+    static f := 0
+    if !f
+        DllCall("QueryPerformanceFrequency", "int64*", &f)
+    DllCall("QueryPerformanceCounter", "int64*", &c := 0)
+    return c * 1000 / f
+}
+
+RouteBtn() {
+    static m := Map("l", "Left", "r", "Right", "m", "Middle", "x1", "X1", "x2", "X2")
+    return m
+}
+
+; Windows pointer settings "t1 t2 accel speed" (Enhance pointer precision = accel 1). A run holds raw mouse counts, a replayed move
+; goes through this scaling: the run is played with the recording PC's settings (header "; ptr"), so a turn is the same angle.
+PtrNow() {
+    m := Buffer(12, 0), s := 10
+    DllCall("SystemParametersInfo", "uint", 0x03, "uint", 0, "ptr", m, "uint", 0)         ; SPI_GETMOUSE
+    DllCall("SystemParametersInfo", "uint", 0x70, "uint", 0, "int*", &s, "uint", 0)       ; SPI_GETMOUSESPEED
+    return NumGet(m, 0, "int") " " NumGet(m, 4, "int") " " NumGet(m, 8, "int") " " s
+}
+; for this session only (fWinIni 0: not written to the profile - a crash leaves it until the next sign-in at most)
+SetPtr(v) {
+    p := StrSplit(v, " ")
+    if p.Length != 4
+        return
+    m := Buffer(12, 0)
+    NumPut("int", Integer(p[1]), "int", Integer(p[2]), "int", Integer(p[3]), m)
+    DllCall("SystemParametersInfo", "uint", 0x04, "uint", 0, "ptr", m, "uint", 0)         ; SPI_SETMOUSE
+    DllCall("SystemParametersInfo", "uint", 0x71, "uint", 0, "ptr", Integer(p[4]), "uint", 0)   ; SPI_SETMOUSESPEED
+}
+
+; a button press of a run at x, y; Roblox needs a mouse move just before it. 13.11 ("the mouse flies up"): with the cursor locked
+; in the middle (shift-lock / right button) every jump to the recorded x, y, a few px off the centre, turned the camera -
+; there a move of 2 px and back (net 0). The pauses were 100 ms (every click came late), now one game frame.
+PressAt(x, y) {
+    near := false
+    try {
+        WinGetClientPos &cx, &cy, &cw, &ch, GAME
+        near := Abs(x - (cx + cw // 2)) <= 40 && Abs(y - (cy + ch // 2)) <= 40
+    }
+    try {
+        MouseGetPos &mx, &my
+        near := near && Abs(mx - (cx + cw // 2)) <= 40 && Abs(my - (cy + ch // 2)) <= 40   ; the cursor is held in the middle NOW
+    }
+    if near {
+        DllCall("mouse_event", "uint", 1, "int", 2, "int", 0, "uint", 0, "ptr", 0)
+        Sleep 8
+        DllCall("mouse_event", "uint", 1, "int", -2, "int", 0, "uint", 0, "ptr", 0)
+    } else {
+        MouseMove x + 6, y + 6, 0
+        Sleep 8
+        MouseMove x, y, 0
+    }
+    Sleep 16
 }
 
 ; header of a run file: "; sens N" = the Roblox mouse sensitivity (x100, like camSens) of the PC that recorded it. No header (an old file) =

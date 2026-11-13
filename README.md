@@ -74,6 +74,7 @@
 
 ## 🩹 Recent fixes
 
+- **Recorder 2.0 rebuilt for exact replays** - no more stuck keys or missing presses (quick taps, keys from macro software), camera turns recorded over RDP / virtual machines / Parsec / tablets, the camera no longer drifts up on clicks with shift-lock, the replay uses the recording PC's Windows mouse settings (put back after), 1 ms timing, clicks no longer 0.1 s late, middle and side mouse buttons recorded, sensitivity field works like in Roblox (3 = 3.00). Record your runs again for the best result.
 - **Restart stuck on the Roblox Sign In page** - the Roblox app keeps logging itself out, so after a restart the game stayed on Sign In. The bot now sees that page and starts the game through your browser instead. Stay signed in at roblox.com in your default browser and tick "Always allow" on the "Open Roblox?" prompt once.
 - **Recorder 2.0 lost actions** - keys stopped being recorded after about 30 s, clicks with Shift/Ctrl/Alt were missed and keys could stay held. All fixed; the camera no longer jumps when a mouse button is released during replay.
 - **Loadout not changed ("Loudoutl")** - the text recognition sometimes glued the 1 to the word, so the bot did not see Loadout 1 and never switched. It now reads that as 1 too.
