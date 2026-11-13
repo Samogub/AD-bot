@@ -78,10 +78,14 @@ OnMessage(0x00FF, RawIn)
 SetTimer(FlushMove, 25)
 SetTimer(Drain, 250)
 
-ih := InputHook("V")
+; 13.11 (players: "actions get lost, worse than TinyTask"): InputHook("V") kept the typed text with the default limit of 1023 characters
+; and then ended - after ~30 s of held W/A/S/D (auto-repeat counts too) no key was recorded any more. L0 = no text, no limit;
+; OnEnd starts it again if anything still ends it.
+ih := InputHook("V L0")
 ih.KeyOpt("{All}", "N")                                   ; notify on every key, without blocking it
 ih.OnKeyDown := KeyDown
 ih.OnKeyUp := KeyUp
+ih.OnEnd := (h) => SetTimer(() => h.Start(), -10)
 ih.Start()
 
 F7:: ToggleRec()
@@ -89,12 +93,13 @@ F8:: TogglePlay()
 F9:: StopPlay()
 F10:: MarkHere()
 
-~LButton:: Mouse("ld")
-~LButton up:: Mouse("lu")
-~RButton:: Mouse("rd")
-~RButton up:: Mouse("ru")
-~WheelUp:: Mouse("up")
-~WheelDown:: Mouse("dn")
+; * = also with Shift / Ctrl / Alt held (13.11: without it a click or wheel with a held modifier was not recorded)
+~*LButton:: Mouse("ld")
+~*LButton up:: Mouse("lu")
+~*RButton:: Mouse("rd")
+~*RButton up:: Mouse("ru")
+~*WheelUp:: Mouse("up")
+~*WheelDown:: Mouse("dn")
 
 #HotIf WinActive("ahk_id " gw.Hwnd) && lv.Focused
 Enter:: (r := lv.GetNext()) && EditRow(r)
@@ -163,12 +168,11 @@ UpdateInfo() {
 ; ---- recording ----
 RawIn(wParam, lParam, msg, hwnd) {
     global mdx, mdy
+    static hdr := A_PtrSize * 2 + 8, buf := Buffer(128, 0)     ; one buffer for all messages: a 1000 Hz mouse sends 1000 of them a second
     Critical
     if !rec
         return
-    hdr := A_PtrSize * 2 + 8, size := 0
-    DllCall("GetRawInputData", "ptr", lParam, "uint", 0x10000003, "ptr", 0, "uint*", &size, "uint", hdr)
-    buf := Buffer(size)
+    size := buf.Size
     if DllCall("GetRawInputData", "ptr", lParam, "uint", 0x10000003, "ptr", buf, "uint*", &size, "uint", hdr) = -1
         return
     if NumGet(buf, 0, "uint") != 0 || NumGet(buf, hdr, "ushort") & 1       ; not a mouse / absolute position
@@ -183,6 +187,11 @@ FlushMove() {
     if rec && (mdx || mdy)
         Push("mm", mdx, mdy)
     mdx := 0, mdy := 0
+    ; a key that is no longer down but has no "key up" row (the up was missed): add it now, else every later press of it is skipped
+    if rec
+        for code in held.Clone()
+            if !GetKeyState(SubStr(code, 1, 4), "P")
+                held.Delete(code), Push("ku", code, GetKeyName(code))
 }
 
 ToggleRec() {
@@ -464,10 +473,12 @@ Do(st, down) {
                 return
             }
             x := Integer(st.a), y := Integer(st.b)
-            MouseMove x + 6, y + 6, 0                         ; Roblox needs mouse movement before a click
-            Sleep 40
-            MouseMove x, y, 0
-            Sleep 60
+            if st.k = "ld" || st.k = "rd" {                   ; 13.11: only before a press; a jump to x, y while the right button holds the camera turned it
+                MouseMove x + 6, y + 6, 0                     ; Roblox needs mouse movement before a click
+                Sleep 40
+                MouseMove x, y, 0
+                Sleep 60
+            }
             switch st.k {
                 case "ld": Click "Left Down"
                 case "lu": Click "Left Up"

@@ -74,6 +74,8 @@
 
 ## 🩹 Recent fixes
 
+- **Restart stuck on the Roblox Sign In page** - the Roblox app keeps logging itself out, so after a restart the game stayed on Sign In. The bot now sees that page and starts the game through your browser instead. Stay signed in at roblox.com in your default browser and tick "Always allow" on the "Open Roblox?" prompt once.
+- **Recorder 2.0 lost actions** - keys stopped being recorded after about 30 s, clicks with Shift/Ctrl/Alt were missed and keys could stay held. All fixed; the camera no longer jumps when a mouse button is released during replay.
 - **Loadout not changed ("Loudoutl")** - the text recognition sometimes glued the 1 to the word, so the bot did not see Loadout 1 and never switched. It now reads that as 1 too.
 - **Raid cut by a restart** - if the game was restarted in the middle of a raid, the bot thought the raid was done for that hour. Now it joins the raid again.
 - **Raid seen as the lobby** - in the middle of a raid the bot sometimes saw PLAY or the mode cards, left for Dimension and the game was closed. The AUTO button now tells it that it is still in a run.

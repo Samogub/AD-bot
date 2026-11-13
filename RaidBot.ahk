@@ -2688,7 +2688,7 @@ RunRoute(route) {
                 Sleep 40
                 DllCall("mouse_event", "uint", 1, "int", -3, "int", 0, "uint", 0, "ptr", 0)
                 Sleep 60
-            } else if IsInteger(st[3]) && IsInteger(st[4]) {
+            } else if (st[2] = "ld" || st[2] = "rd") && IsInteger(st[3]) && IsInteger(st[4]) {   ; 13.11: not before a release (it turned the held camera)
                 MouseMove Integer(st[3]) + 6, Integer(st[4]) + 6, 0
                 Sleep 40
                 MouseMove Integer(st[3]), Integer(st[4]), 0
@@ -3592,6 +3592,25 @@ RestartRoblox(why, mode := "auto", gap := RESTART_GAP) {
             }
         }
     }
+    ; 13.11: on players' PCs the Roblox app keeps logging itself out, so roblox:// lands on its Sign In page and the bot
+    ; waited there forever. The browser stays signed in: close the app and start the game through a roblox.com link instead.
+    if ok && mode != "browser" && SignInScreen() {
+        Log("  Roblox app shows its Sign In page (app logged out) - starting the game through the browser")
+        Screenshot("signin")
+        WinClose GAME
+        WinWaitClose GAME, , 10
+        if pid := MyRobloxPid()
+            ProcessClose pid
+        Sleep 3000
+        link := PrivateLink()
+        web := RegExMatch(link, "i)^https?://(www\.)?roblox\.com/") ? link : "https://www.roblox.com/games/start?placeId=" PlaceId()
+        try Run web
+        ok := WaitGame(120000, mode) && !SignInScreen()
+        if !ok {
+            Log("WARNING: the game did not start through the browser either - sign in at roblox.com in your default browser")
+            problemNote := "Roblox app logged out - sign in at roblox.com in your browser"
+        }
+    }
     if !ok {
         Log("  Roblox window never appeared")
         return false
@@ -3605,6 +3624,21 @@ RestartRoblox(why, mode := "auto", gap := RESTART_GAP) {
     Log("  Roblox started again in " (A_TickCount - lastRestart) // 1000 " s")
     fightSince := 0, lastFight := 0, portraitSig := "", walkAt := 0, noGameSince := 0
     return true
+}
+
+; the logged-out Roblox app: "Sign In" / "Create Account" in the middle of its window (looks for up to 20 s while it loads)
+SignInScreen() {
+    t0 := A_TickCount
+    while A_TickCount - t0 < 20000 && WinExist(GAME) {
+        try {
+            WinActivate GAME
+            WinGetClientPos &cx, &cy, &cw, &ch, GAME
+            if RegExMatch(OcrRegion([cx + cw // 2 - 300, cy + ch // 3, 600, ch // 2]), "i)sign\s*in|create\s*account")
+                return true
+        }
+        Sleep 3000
+    }
+    return false
 }
 
 ; чекаємо вікно гри до ms ms (під час роботи бота - лише поки його не зупинили)
