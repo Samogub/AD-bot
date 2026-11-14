@@ -372,9 +372,11 @@ if A_Args.Length && A_Args[1] = "fight"                 ; тест бою: ли�
 if A_Args.Length                                        ; "start" or "fight" - start at once, without F1
     Start()
 
+#HotIf !updBusy                     ; 14.11: no Start / Stop / Restart while the update copies files (update.ahk)
 F1:: Start()
 F2:: Stop()
 F3:: RestartBot()
+#HotIf
 
 SkillOn(key) => true                       ; v0.3: усі скіли завжди активні (skillsOff ігнорується)
 

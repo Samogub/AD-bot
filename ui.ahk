@@ -528,6 +528,8 @@ UiClick(wParam, lParam, msg, hwnd) {
     }
     if hwnd != g.Hwnd
         return
+    if updBusy                                          ; 14.11: locked while the update runs (no clicks, no dragging)
+        return 0
     h := HitAt(lParam)
     if IsObject(h.fn) {
         was := running
@@ -576,7 +578,7 @@ ClickSound(id, was := false) {
 
 UiMove(wParam, lParam, msg, hwnd) {
     global hoverId
-    if hwnd != g.Hwnd
+    if hwnd != g.Hwnd || updBusy
         return
     id := HitAt(lParam).id
     if id != hoverId {
@@ -1137,7 +1139,12 @@ UiRender(force := false) {
     static lastFrameLog := 0, lastSlowLog := -1000
     t0 := A_TickCount
     Critical "On"                         ; mouse messages must not interrupt a half-drawn frame (hits would be incomplete -> hover flicker)
-    if !animFrame                         ; an animation frame does not recompute the tile texts (they read the ini): the last ones stay
+    if updBusy && updView.stage != "" {   ; 14.11: the update loading screen replaces the page in both skins (update.ahk)
+        UpdRender()
+        Critical "Off"
+        return
+    }
+    if !animFrame                        ; an animation frame does not recompute the tile texts (they read the ini): the last ones stay
         UiCompute()
     if skin = "compact" {
         pgLast := ""
@@ -1235,6 +1242,14 @@ UiShotHotbar() {
         DllCall("gdiplus\GdipDisposeImage", "ptr", pb)
     } else
         UiShotLog("ui: shot FAILED hotbar_full.png (gdi+ error " res ")")
+    global updRemote                                      ; 14.11: the same bar with a new build on GitHub
+    updRemote := "999999999999", hbKey := ""
+    HotbarDraw("12:40", "08:15", "Raid: waiting in the lobby for the hourly raid")
+    uiShotFile := dir "hotbar_update.png"
+    if DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "ptr", hbBmp, "ptr", 0, "ptr*", &pb := 0) = 0 {
+        UiShotSave(pb)
+        DllCall("gdiplus\GdipDisposeImage", "ptr", pb)
+    }
 }
 
 ; draws every full-skin page (and the Setup card over home) to shots\ui\<name>.png; nothing is shown, clicked or saved in the ini
@@ -1307,6 +1322,21 @@ UiShots() {
         UiRender(true)
     }
     C := saveC
+    global updBusy, updView, PW, PH                      ; 14.11: the update loading screen (fake clock, no download)
+    updBusy := true
+    for st in [["download", 6.4, 2000], ["install", 11.8, 3000], ["restart", 11.8, 1000]] {
+        updView := {stage: st[1], mb: st[2], msg: "", t0: 0, at: 1000000, shown: 0, done: false, killed: false, from: "202611140803", to: "202611141200", fake: 1000000 + st[3]}
+        uiShotFile := dir "update_" st[1] ".png"
+        UiRender(true)
+    }
+    sw := PW, sh := PH, skin := "compact"                ; the compact window: tall (groups open) and short (all folded)
+    for hh in [600, 240] {
+        PW := Round(CMP_W * CK()), PH := Round(hh * CK())
+        updView.stage := "download", updView.fake := 1002000
+        uiShotFile := dir "update_compact_" hh ".png"
+        UiRender(true)
+    }
+    PW := sw, PH := sh, skin := "full", updBusy := false, updView.stage := ""
     UiShotLog("ui: shots done")
 }
 

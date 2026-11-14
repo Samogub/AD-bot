@@ -93,6 +93,7 @@
 
 - **LEAVE not pressed (14.11)** - after Speed Raid (and sometimes Infinity) the LEAVE picture did not match, so the bot waited ~15 s for the teleport. A new LEAVE picture made from two real results screens fixes it.
 - **Wait after REPLAY (14.11, players)** - new setting on the Dimension page (1-60 s, was a fixed 15 s): how long Halloween, Death and other recorded Dimensions wait after REPLAY before the run starts. Extreme keeps its own **Wait after Start**.
+- **Update loading screen (14.11, players)** - UPDATE now shows an animated loading screen (Download, Unpack, Install, Restart) and the bot is locked until it is done: no clicks, no F1-F3, no closing. Updates are also much faster (a few seconds) and never stop on a song that is playing. It shows from the next update on.
 - **UPDATE in the bar over the game (14.11, players)** - while the bot farms, the small bar over the game shows a green **UPDATE ready · F2** when a new version is out: stop with F2 and press **UPDATE** in the window.
 - **New sounds, full window first (14.11, players)** - calmer, quieter button sounds; a new download opens the full window after Setup instead of the compact one.
 - **Version in the folder name (14.11, players)** - the Download link at the top gives a folder named `AD-bot-0.4.1`.
