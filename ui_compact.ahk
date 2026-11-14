@@ -364,7 +364,7 @@ CompactRows(name) {
                 rows.Push(CStep("CAMERA TURN", "respawnTurn", 5, 35, 155, 1, "°", 95))
         case "infinity":
             ga := cfg["infGameAuto"] = "1"                   ; the game's Auto fights: AOE settings are locked
-            rows.Push(CTog(CT("infGameAuto", "GAME AUTO")))
+            rows.Push(CTog(CT("infGameAuto", "GAME AUTO"), CT("infAssist1", "RESET ASSIST 1")))
             rows.Push(CStep("RUN TIME", "infRunMin", 1, 0, 59, 1, "min", 0))   ; leave Infinity after this many minutes and enter again (0 = off)
             rows.Push(CStep("AOE PAUSE", "spreadMs", 500, 1000, 20000, 1000, "s", 7000, ga))
             rows.Push(CStep("AUTO IF STUCK", "infAuto", 5000, 0, 60000, 1000, "s", 15000, ga))
@@ -377,7 +377,8 @@ CompactRows(name) {
             rows.Push(CTog(CT("dungeon", "DIM ON", false, "t2_dungeon"), CT("dimFight", "KEEP FIGHT")))
             rows.Push({k: "pick", label: "DIMENSION", kind: "dim"})        ; the list of every Dimension (drop-up, like the raid picker)
             rows.Push(CStep("START DELAY", "dimShift", 100, 0, 5000, 1000, "s", 0))
-            rows.Push(CStep("WAIT AFTER REPLAY", "dimReplayWait", 1, 1, 60, 1, "s", 15))
+            rows.Push(CTog(CT("giantDetect", "GIANT DETECT", DimKindUi() != "giant")))
+            rows.Push(CStep("WAIT AFTER REPLAY", "dimReplayWait", 1, 1, 60, 1, "s", 15, GiantDetect()))
             rows.Push({k: "chips", items: [["SLOT 1", !InStr("2345", cfg["dimMethod"]), PickDimMethod.Bind("1"), false, "dm_1"], ["SLOT 2", cfg["dimMethod"] = "2", PickDimMethod.Bind("2"), false, "dm_2"]]})
             rows.Push({k: "chips", items: [["SLOT 3", cfg["dimMethod"] = "3", PickDimMethod.Bind("3"), false, "dm_3"], ["SLOT 4", cfg["dimMethod"] = "4", PickDimMethod.Bind("4"), false, "dm_4"], ["SLOT 5", cfg["dimMethod"] = "5", PickDimMethod.Bind("5"), false, "dm_5"]]})
             rows.Push({k: "btns", items: [["EDIT RUN", DimEdit], ["FOLDER", (*) => OpenPath(DimDir(DimKindUi()))]]})

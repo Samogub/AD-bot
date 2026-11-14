@@ -319,6 +319,8 @@ cfg := Map(
     "loadouts",   IniRead(INI, "raid", "loadouts", "1"),     ; міняти loadout: рейд - 1, Infinity або dungeon - 2, Speed Raid - 3
     "dimWait",    IniRead(INI, "raid", "dimWait", "2000"),       ; Dimension: ms to wait after the first enemies are seen, before the run (0 = start at once)
     "dimShift",   IniRead(INI, "raid", "dimShift", "0"),        ; Dimension: start delay, ms - wait this long after the enemies show up
+    "giantDetect", IniRead(INI, "raid", "giantDetect", "1"),     ; 14.11: Giant looks for the giants on screen after RETRY (1) or waits dimReplayWait s (0)
+    "infAssist1", IniRead(INI, "raid", "infAssist1", "0"),       ; 14.11 (player): Infinity - one Esc-R-Enter at the start of a run, so Assist 1 comes out
     "dimFight",   IniRead(INI, "raid", "dimFight", "1"),         ; Dimension: normal fight after the run if enemies are left
     "dimMethod",  IniRead(INI, "raid", "dimMethod", "1"),        ; Dimension route: 1 = dimension\giant\log.txt, 2 = built-in route
     "xdim",       IniRead(INI, "raid", "xdim", "0"),             ; Extreme Dimension on/off (0.3.5: only the switch and the 1-4 picker, no run yet)
@@ -1420,6 +1422,8 @@ Step() {
         if !fightSince {
             fightSince := A_TickCount
             AutoReset()                                       ; Auto is off again after a teleport / new run
+            if lastEntered = "infinity" && cfg["infAssist1"] = "1" && running && !SeePlay(&px, &py)
+                InfAssistReset()
         }
         infDrop := false
         if lastEntered = "raid" && raidDoneKey != RaidKey() {
@@ -2166,7 +2170,7 @@ LeaveInfinity() {
         }
         if lastEntered = "dungeon" && Target() = "dungeon" {
             SetStatus("Dimension results: pressing RETRY")
-            routeDone := false, dimRetryAt := A_TickCount, xdimStartAt := A_TickCount
+            routeDone := false, dimRetryAt := A_TickCount, xdimStartAt := GiantDetect() ? 0 : A_TickCount
             if first
                 Stat("dimRuns")
             ClickXY(x + 90 - 593, y + 24)
@@ -2687,6 +2691,22 @@ ToggleGreen(px, py) {
 ; Plays a recorded route: [ms, "kd"/"ku", key code] from the start. Starts when the first enemies are seen ahead,
 ; as when it was recorded (not played if they are not seen in 20 s), every step shifted by dimShift ms. Each step is timed against the start with a 1 ms timer,
 ; so nothing adds up (Sleep alone is 15.6 ms coarse). SendInput: no key delay, exactly like the recording.
+; 14.11 (player: "reset to assist 1" for Infinity, so one character can be both main and assist): once per run, at its first fight frame
+InfAssistReset() {
+    global lastReset
+    Log("Infinity: reset to Assist 1 (Esc-R-Enter, once per run)")
+    SetStatus("Infinity: reset to Assist 1")
+    Sleep 1500
+    HoldKey("Esc")
+    Sleep 1000
+    HoldKey("r")
+    Sleep 800
+    HoldKey("Enter")
+    lastReset := A_TickCount
+}
+
+GiantDetect() => DimKind() = "giant" && cfg["giantDetect"] = "1"
+
 RunRoute(route) {
     global xdimStartAt, dimRetryAt
     shift := Num("dimShift", 0)
@@ -3078,7 +3098,7 @@ DimRetry() {
     onlyLeave := 0
     if !RegExMatch(txt, "i)retry") || !RegExMatch(txt, "i)leave") {
         if retryPending                                   ; the results are gone: RETRY worked, arm the route for the new run
-            retryPending := false, routeDone := false, xdimStartAt := A_TickCount   ; Extreme / Halloween / Death: the wait starts again
+            retryPending := false, routeDone := false, xdimStartAt := GiantDetect() ? 0 : A_TickCount   ; Extreme / Halloween / Death: the wait starts again
         return false
     }
     lastFight := A_TickCount - FIGHT_STICKY                ; not a fight any more

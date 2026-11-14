@@ -1780,6 +1780,8 @@ PageInfinity2() {
     Sw2(lx, y0 + RH2, cw, ga, "sw_infGameAuto", FlipKey.Bind("infGameAuto"))
     SRow(lx, y0 + RH2 * 2, cw, "Leave Infinity after", "Then enters again; 0 = off", 150)
     Stp2(lx, y0 + RH2 * 2, cw, StpFmt(Num("infRunMin", 0), "min"), StepCfg.Bind("infRunMin", -1, 0, 59, 0), StepCfg.Bind("infRunMin", 1, 0, 59, 0), "infRunMin")
+    SRow(rx, y0 + RH2 * 2, cw, "Reset to Assist 1", "Once at the start of each run: Esc-R-Enter", 46)
+    Sw2(rx, y0 + RH2 * 2, cw, cfg["infAssist1"] = "1", "sw_infAssist1", FlipKey.Bind("infAssist1"))
     why := "Off while Game Auto is on"
     sp := Num("spreadMs", 7000)
     SRow(rx, y0, cw, "Pause between AOE", "The author recommends 7 s", 150, ga ? why : "")
@@ -1829,9 +1831,12 @@ PageDimension2() {
     Stp2(lx, y0 + RH2 * 3, cw, Format("{:g} s", Round(Num("dimShift", 0) / 1000, 1)), StepCfg.Bind("dimShift", -100, 0, 5000, 0), StepCfg.Bind("dimShift", 100, 0, 5000, 0), "dimShift", lk)
     SRow(lx, y0 + RH2 * 4, cw, "Keep fighting", "Finishes the enemies that are left after the run", 46, lk ? why : "")
     Sw2(lx, y0 + RH2 * 4, cw, cfg["dimFight"] = "1", "sw_dimFight", FlipKey.Bind("dimFight"), lk)
-    rk := lk
-    SRow(lx, y0 + RH2 * 5, cw, "Wait after REPLAY", "Seconds before the run starts again", 150, lk ? why : "")
-    Stp2(lx, y0 + RH2 * 5, cw, StpFmt(Num("dimReplayWait", 15), "s"), StepCfg.Bind("dimReplayWait", -1, 1, 60, 15), StepCfg.Bind("dimReplayWait", 1, 1, 60, 15), "dimReplayWait", rk)
+    gk := dk != "giant"
+    SRow(lx, y0 + RH2 * 5, cw, "Giant detection", "On: waits for the giants on screen. Off: timer below", 46, lk ? why : gk ? "Giant only" : "")
+    Sw2(lx, y0 + RH2 * 5, cw, cfg["giantDetect"] = "1", "sw_giantDetect", FlipKey.Bind("giantDetect"), lk || gk)
+    rk := lk || GiantDetect()                                 ; Giant with detection on: no timer
+    SRow(lx, y0 + RH2 * 6, cw, "Wait after REPLAY", "Seconds before the run starts again", 150, lk ? why : GiantDetect() ? "Off while detection is on" : "")
+    Stp2(lx, y0 + RH2 * 6, cw, StpFmt(Num("dimReplayWait", 15), "s"), StepCfg.Bind("dimReplayWait", -1, 1, 60, 15), StepCfg.Bind("dimReplayWait", 1, 1, 60, 15), "dimReplayWait", rk)
     rt := FrzGet("route" dk cfg["dimMethod"], DimRoute.Bind(dk))
     rec := rt == DUNGEON_ROUTE ? "Empty slot - the built-in run is played"   ; 14.11: every slot is the player's; only an empty Giant slot falls back
         : rt.Length ? rt.Length " steps · " Round(rt[rt.Length][1] / 1000, 1) " s" : "No recording"
