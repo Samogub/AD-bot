@@ -1,4 +1,4 @@
-; update.ahk - the UPDATE button (14.11, players: "add an UPDATE button so we do not have to check Discord again and again").
+﻿; update.ahk - the UPDATE button (14.11, players: "add an UPDATE button so we do not have to check Discord again and again").
 ; build.txt (written by make_release.ps1: yyyyMMddHHmm) = this build. The bot reads build.txt of the GitHub repository at start and
 ; every hour; a bigger number shows the UPDATE button. UPDATE: Stop, tools\update.ps1 downloads the repository and copies it over the
 ; bot folder (raid.ini, logs, screenshots and recorded runs stay), then the bot starts again.
@@ -84,5 +84,49 @@ UpdateRun(*) {
     ExitApp
 }
 
+; 14.11 bot counter: while the bot farms it sends its random id (raid.ini [ui] botId) to the author's counter once an hour.
+; Only that id - no name, no game data; the counter keeps no IP.
+STATS_URL := "https://adbot-stats.adbot-stats.workers.dev/ping?id="
+
+BotId() {
+    static id := ""
+    if id != ""
+        return id
+    id := IniRead(INI, "ui", "botId", "")
+    if !RegExMatch(id, "^[0-9a-f]{16}$") {
+        id := ""
+        loop 16
+            id .= Format("{:x}", Random(0, 15))
+        try IniWrite id, INI, "ui", "botId"
+    }
+    return id
+}
+
+; checked every minute: the first ping ~1 min after Start, then one per 55 min while running. Asynchronous like UpdateCheck.
+StatsPing() {
+    static req := 0, last := 0, t0 := 0
+    if !IsSet(running) || !running || req || (last && A_TickCount - last < 3300000)
+        return
+    try {
+        req := ComObject("WinHttp.WinHttpRequest.5.1")
+        req.SetTimeouts(5000, 5000, 5000, 5000)
+        req.Open("GET", STATS_URL BotId(), true)
+        req.Send()
+        last := t0 := A_TickCount
+        SetTimer(PingWait, 1000)
+    } catch
+        req := 0
+
+    PingWait() {
+        done := false
+        try done := req.WaitForResponse(0)
+        if !done && A_TickCount - t0 < 20000
+            return
+        SetTimer(PingWait, 0)
+        req := 0
+    }
+}
+
 SetTimer(() => UpdateCheck(), -8000)                  ; after the start-up (own closure: the same function would replace the hourly timer)
 SetTimer(UpdateCheck, 3600000)
+SetTimer(StatsPing, 60000)

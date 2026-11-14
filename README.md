@@ -30,6 +30,7 @@
 | 🚪 **Speed Raid LEAVE** | After a Speed Raid the bot presses LEAVE right after the rewards are read, instead of waiting ~15 s for the teleport. |
 | 🎛️ **Recorder 2.0 fixed** | No lost or stuck keys, camera turns recorded over RDP, no camera drift up on clicks, exact 1 ms timing, middle and side mouse buttons, your Windows mouse settings used for the replay. Record your runs again for the best result. |
 | 🔑 **Roblox Sign In page** | If the Roblox app logs itself out, the bot starts the game through your browser instead of waiting on the Sign In page. |
+| 📊 **Bot counter** | While the bot farms, it sends a random number (its id) to the author's counter once an hour, so we can see how many bots run. No name, no account, no game data; no IP is stored. |
 
 ## ✨ New in 0.4.0
 
@@ -85,6 +86,7 @@
 
 ## 🩹 Recent fixes
 
+- **Bot counter (14.11)** - the bot sends a random id once an hour while it farms, so the author can see how many bots run. Nothing else is sent.
 - **Raid closed by the bot (14.11)** - after a game update the AUTO button pictures stopped matching, a false lobby sent the bot to the Bag and Safe mode closed the game in the middle of the raid. New pictures, a colour check of the AUTO button and guards on every lobby / menu / restart action fix it.
 - **Auto pressed late** - the raid start countdown was taken for a death screen, and the colour check waited 8 s. Auto is now pressed about 1 s into the run.
 
@@ -167,6 +169,7 @@ After a restart the bot starts the game on a public server. To come back to your
 - Tested on one setup (1920x1080, one account). Other settings can break image matching.
 - The bot uses your mouse and keyboard, so you cannot use the PC while it runs.
 - A disconnect is noticed after about 1.5 minutes.
+- While it farms, the bot sends only a random id (`botId` in raid.ini) once an hour to count running bots. Nothing else is sent; no IP is stored.
 - Automating Roblox games may break the rules of Roblox or the game. **Use at your own risk.**
 
 Found a problem? Run `Send_Report.bat` and send the zip to the author, or open an issue.
