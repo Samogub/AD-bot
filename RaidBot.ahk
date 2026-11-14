@@ -893,6 +893,7 @@ Start() {
     ; поки бот працює, Windows не засинає і не гасить/не блокує екран (інакше бот бачить чорний екран)
     DllCall("SetThreadExecutionState", "uint", 0x80000003)
     SetTimer(Tick, Max(50, Num("interval", 120)))
+    SetTimer(AutoWatch, 150)
 }
 
 Stop(showSummary := true) {
@@ -901,6 +902,7 @@ Stop(showSummary := true) {
     running := false
     Heartbeat()                                           ; "stopped": the watchdog ends instead of starting the bot again
     SetTimer(Tick, 0)
+    SetTimer(AutoWatch, 0)
     ReleaseKeys()
     FlushRun()
     if was {
@@ -1990,6 +1992,16 @@ Step() {
         SetStatus("teleporting to the raid world")
         ClickImg("raid_mode.png", x, y)
         ParkMouse()
+        ; 14.11 11:00: the game answered "Failed to teleport. Exit the teleporter and try again" - the window stayed open, and WaitLoaded took the
+        ; PLAY letters behind it for the lobby. Menu still there 6 s after the click = no teleport: close it, the loop reopens it from PLAY.
+        Sleep 6000
+        if running && FindImg("raid_mode.png", &x, &y, 0, 860, SCR_W, 1000) && !RunButtonSeen() {
+            Log("  teleport failed (the modes window is still open) - closing it and trying again")
+            Screenshot("tele_failed")
+            Send "{Esc}"
+            Sleep 1500
+            return
+        }
         WaitLoaded()
         return
     }
@@ -2154,7 +2166,7 @@ LeaveInfinity() {
         }
         if lastEntered = "dungeon" && Target() = "dungeon" {
             SetStatus("Dimension results: pressing RETRY")
-            routeDone := false, dimRetryAt := A_TickCount, xdimStartAt := DimKind() != "giant" ? A_TickCount : 0
+            routeDone := false, dimRetryAt := A_TickCount, xdimStartAt := A_TickCount
             if first
                 Stat("dimRuns")
             ClickXY(x + 90 - 593, y + 24)
@@ -2688,7 +2700,7 @@ RunRoute(route) {
     t0 := A_TickCount
     ; orange things in the lobby or the modes menu are not the giants (3.11 20:36 the run started in the menu)
     h := ENEMIES_HOME
-    seen := false, strong := 0
+    seen := false, strong := 0, timed := false   ; 14.11: Giant after RETRY also waits dimReplayWait s (no enemy detection)
     if kind = "xdim" || xdimStartAt {                     ; Extreme: the map is different every day - the run starts a set time after Start
         wait := Num(kind = "xdim" ? "xdimWait" : "dimReplayWait", 15) * 1000   ; 8.11: also after REPLAY in Halloween / Death (the HUD start missed the replayed run); 14.11 own setting
         xdimStartAt := xdimStartAt || A_TickCount
@@ -2703,7 +2715,7 @@ RunRoute(route) {
             Sleep 400
         }
         xdimStartAt := 0
-        seen := running
+        seen := running, timed := true
     }
     while running && !seen && A_TickCount - t0 < 20000 {
         n := MobsCount()
@@ -2724,7 +2736,7 @@ RunRoute(route) {
         Screenshot("route_nostart")
         return
     }
-    if kind != "xdim" && running && Num("dimWait", 2000) > 0 {   ; 8.11 (Discord report): the character did not walk, only the skills worked - the game was not ready for movement yet
+    if kind != "xdim" && !(timed && kind = "giant") && running && Num("dimWait", 2000) > 0 {   ; 8.11 (Discord report): the character did not walk, only the skills worked - the game was not ready for movement yet
         wait := Num("dimWait", 2000)
         ; 11.11 (player report, log 09:12): after RETRY the giants are seen after ~5 s but the character cannot move yet - the route was played
         ; on the spot (the first run after a restart, which has a longer wait, walked fine). The run of a RETRY starts no earlier than
@@ -3066,7 +3078,7 @@ DimRetry() {
     onlyLeave := 0
     if !RegExMatch(txt, "i)retry") || !RegExMatch(txt, "i)leave") {
         if retryPending                                   ; the results are gone: RETRY worked, arm the route for the new run
-            retryPending := false, routeDone := false, xdimStartAt := DimKind() != "giant" ? A_TickCount : 0   ; Extreme / Halloween / Death: the wait starts again
+            retryPending := false, routeDone := false, xdimStartAt := A_TickCount   ; Extreme / Halloween / Death: the wait starts again
         return false
     }
     lastFight := A_TickCount - FIGHT_STICKY                ; not a fight any more

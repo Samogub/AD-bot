@@ -4,7 +4,8 @@
 
 AUTO_OFF_PTS := [[-6, 6], [54, 6], [24, -16]]    ; diamond fill (red) at offsets from the letters' top-left: guards against white blobs
 autoTries := 0, autoAt := 0, autoWinAt := 0, autoFailLogged := false, autoOnLogged := false
-autoSeen := 0                                    ; last tick with a sign of the run (ENEMIES LEFT or the Auto button)
+autoBusy := false
+autoSeen := 0                                 ; last tick with a sign of the run (ENEMIES LEFT or the Auto button)
 realFightAt := 0                                 ; last tick the ENEMIES LEFT picture itself matched (RunButtonSeen: way out of a wrong colour hit)
 autoBtnAt := 0                                   ; last tick the Auto button was seen
 autoOffSince := 0, autoWaitLogAt := 0, autoFailN := 0   ; OFF stability: first tick of the current uninterrupted OFF sighting
@@ -235,7 +236,25 @@ AutoClickBtn() {
 
 ; press AUTO only when the OFF look is really seen (never blindly: while dead Auto stays on)
 ; and only when it has been seen steadily: 0.3 s for the red diamond, 1.5 s for the near-black one (it can also mean "button unavailable")
+; 14.11 (player: Auto is pressed ~10 s after the raid timer starts): a step of the bot takes ~1 s and the raid start is checked inside it. A quick
+; timer now looks only at the OFF button while a raid / Speed Raid is the goal, and presses it. One AutoEnsure at a time (Sleep lets timers in).
+AutoWatch() {
+    if !running || cfg["bossAuto"] != "1" || !BossFight()
+        return
+    if AutoOffVisible()
+        AutoEnsure()
+}
+
 AutoEnsure() {
+    global autoBusy
+    if autoBusy
+        return
+    autoBusy := true
+    try AutoEnsure0()
+    finally autoBusy := false
+}
+
+AutoEnsure0() {
     global autoTries, autoAt, autoWinAt, autoFailLogged, autoOnLogged, autoOffSince, autoWaitLogAt, autoFailN, autoLook, autoRGB, autoNoneSince, autoMissLogged
     kind := lastEntered = "speed" ? "Speed Raid" : lastEntered = "infinity" ? "Infinity" : "raid"
     ; 14.11 (player: "it takes ~15 s to press Auto"): the waits below were 8 s / 2.5 s / 1 s - shortened
@@ -254,12 +273,17 @@ AutoEnsure() {
         return
     if offNow {
         stable := A_TickCount - autoOffSince
-        if stable < (autoLook = "black" ? 1500 : 300) {
+        need := autoLook = "black" ? 1500 : 300
+        if stable < need {
             if A_TickCount - autoWaitLogAt >= 10000 {
                 autoWaitLogAt := A_TickCount
                 Log(kind ": Auto: off seen, waiting stable (" autoLook ")")
             }
-            return
+            ; 14.11 (player: Auto takes ~10 s at the raid start): a step takes ~1 s, so waiting for the next one cost a second - wait here and look again
+            Sleep need - stable + 30
+            if !running || !AutoOffVisible()
+                return
+            stable := A_TickCount - autoOffSince
         }
         if autoTries && A_TickCount - autoWinAt > 30000
             autoTries := 0                                  ; max 3 tries per 30 s

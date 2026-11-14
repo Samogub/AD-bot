@@ -91,6 +91,9 @@
 
 ## 🩹 Recent fixes
 
+- **Raid: failed teleport (14.11, players)** - when the game answers "Failed to teleport. Exit the teleporter and try again" the modes window stayed open and the bot took the PLAY button behind it for the lobby. Now it closes the window after 6 s and tries again.
+- **Auto in a raid starts faster (14.11, players)** - a quick watcher presses AUTO about half a second after the button shows, instead of waiting for the next bot step (1-2 s).
+- **Giant: Wait after REPLAY (14.11, players)** - Giant now uses **Wait after REPLAY** too: after RETRY it does not look for the giants any more, the run starts that many seconds after RETRY (no extra 2 s / 10 s).
 - **LEAVE not pressed (14.11)** - after Speed Raid (and sometimes Infinity) the LEAVE picture did not match, so the bot waited ~15 s for the teleport. A new LEAVE picture made from two real results screens fixes it.
 - **Wait after REPLAY (14.11, players)** - new setting on the Dimension page (1-60 s, was a fixed 15 s): how long Halloween, Death and other recorded Dimensions wait after REPLAY before the run starts. Extreme keeps its own **Wait after Start**.
 - **Update loading screen (14.11, players)** - UPDATE now shows an animated loading screen (Download, Unpack, Install, Restart) and the bot is locked until it is done: no clicks, no F1-F3, no closing. Updates are also much faster (a few seconds) and never stop on a song that is playing. It shows from the next update on.
