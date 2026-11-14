@@ -325,6 +325,7 @@ cfg := Map(
     "dimName",    IniRead(INI, "raid", "dimName", "giant"),      ; Dimension: giant / halloween / death / demon / ... (DIMS; each keeps its own recordings)
     "xdimWait",   IniRead(INI, "raid", "xdimWait", "15"),        ; Extreme Dimension: seconds to wait after Start before the run (the game loads the map)
     "xdimPick",   IniRead(INI, "raid", "xdimPick", "1"),         ; Extreme Dimension: which of the 4 buttons
+    "dimReplayWait", IniRead(INI, "raid", "dimReplayWait", "15"), ; 14.11 (players): Halloween / Death / other recorded Dimensions - seconds after REPLAY before the run (Extreme: xdimWait)
     "dungeon",    IniRead(INI, "raid", "dungeon", "1"),         ; Giant Dimension (Nightmare, Hardcore, Friends Only) instead of Infinity; experimental
     "speed",      IniRead(INI, "raid", "speed", "1"),          ; Speed Raid раз на 30 min (пріоритет: рейд > speed > Infinity)
     "seekAfter",  IniRead(INI, "raid", "seekAfter", "5000"),    ; скільки ms без влучань, щоб почати пошук
@@ -2173,7 +2174,8 @@ LeaveInfinity() {
 
 ; Speed Raid results (the REWARDS panel with LEAVE at the same place as in Infinity, shot 8.11 12:30): press LEAVE as soon as the
 ; rewards are read (or 3 s after the button shows) instead of waiting ~15 s for "Teleporting in N". The raid results have no LEAVE.
-; Only the LEAVE picture triggers it; a wrong hit clicks an empty spot of the fight.
+; Only the LEAVE picture triggers it; a wrong hit clicks an empty spot of the fight. 14.11: leave.png never matched here (1509 of 8640 px off,
+; 08:09 the bot waited for the teleport) - img\leave_2.png (letters + light button, from 2 real shots) is the fallback FindImg tries.
 SpeedLeave() {
     static seenAt := 0, pressAt := 0
     if !FindImg("leave.png", &x, &y, 1000, 680, 1450, 840) && !FindImg("leave.png", &x, &y, 1000, 680, 1450, 840, "*110 *TransFF00FF") {
@@ -2686,7 +2688,7 @@ RunRoute(route) {
     h := ENEMIES_HOME
     seen := false, strong := 0
     if kind = "xdim" || xdimStartAt {                     ; Extreme: the map is different every day - the run starts a set time after Start
-        wait := Num("xdimWait", 15) * 1000                ; 8.11: also after REPLAY in Extreme / Halloween / Death (the HUD start missed the replayed run)
+        wait := Num(kind = "xdim" ? "xdimWait" : "dimReplayWait", 15) * 1000   ; 8.11: also after REPLAY in Halloween / Death (the HUD start missed the replayed run); 14.11 own setting
         xdimStartAt := xdimStartAt || A_TickCount
         while running && A_TickCount - xdimStartAt < wait {
             SetStatus((kind = "xdim" ? "Extreme" : kind) " Dimension: the run starts in " Ceil((wait - (A_TickCount - xdimStartAt)) / 1000) " s")

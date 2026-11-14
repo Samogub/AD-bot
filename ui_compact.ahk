@@ -377,6 +377,7 @@ CompactRows(name) {
             rows.Push(CTog(CT("dungeon", "DIM ON", false, "t2_dungeon"), CT("dimFight", "KEEP FIGHT")))
             rows.Push({k: "pick", label: "DIMENSION", kind: "dim"})        ; the list of every Dimension (drop-up, like the raid picker)
             rows.Push(CStep("START DELAY", "dimShift", 100, 0, 5000, 1000, "s", 0))
+            rows.Push(CStep("WAIT AFTER REPLAY", "dimReplayWait", 1, 1, 60, 1, "s", 15))
             rows.Push({k: "chips", items: [["SLOT 1", !InStr("2345", cfg["dimMethod"]), PickDimMethod.Bind("1"), false, "dm_1"], ["SLOT 2", cfg["dimMethod"] = "2", PickDimMethod.Bind("2"), false, "dm_2"]]})
             rows.Push({k: "chips", items: [["SLOT 3", cfg["dimMethod"] = "3", PickDimMethod.Bind("3"), false, "dm_3"], ["SLOT 4", cfg["dimMethod"] = "4", PickDimMethod.Bind("4"), false, "dm_4"], ["SLOT 5", cfg["dimMethod"] = "5", PickDimMethod.Bind("5"), false, "dm_5"]]})
             rows.Push({k: "btns", items: [["EDIT RUN", DimEdit], ["FOLDER", (*) => OpenPath(DimDir(DimKindUi()))]]})

@@ -9,6 +9,10 @@
 ![autohotkey](https://img.shields.io/badge/AutoHotkey-v2-1f1f2e?style=for-the-badge&logo=autohotkey)
 ![screen](https://img.shields.io/badge/screen-1920x1080-1f1f2e?style=for-the-badge)
 
+### [⬇️ Download AD Bot 0.4.1](https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.1.zip)
+
+<sub>The folder inside is named after the version (`AD-bot-0.4.1`), so you always know which build you have.</sub>
+
 <img src="docs/hero.gif" width="640" alt="AD Bot 0.4.0, HUD 2.0">
 
 </div>
@@ -28,6 +32,7 @@
 | ⚡ **Faster Auto** | Auto is pressed about 1 s after a Raid, Speed Raid or Infinity run starts (was up to 15-50 s). The bot also knows the AUTO button by its colours, so a game update cannot hide it again. |
 | 🛡️ **Never closes a running raid** | While the AUTO button is on screen the bot does no lobby or menu actions, no Safe mode restart, no Esc - a false "lobby" can no longer close your raid. |
 | 🚪 **Speed Raid LEAVE** | After a Speed Raid the bot presses LEAVE right after the rewards are read, instead of waiting ~15 s for the teleport. |
+| ⏱️ **Wait after REPLAY** | Dimension page: set how many seconds Halloween, Death and other recorded Dimensions wait after REPLAY (was a fixed 15 s). |
 | 🎛️ **Recorder 2.0 fixed** | No lost or stuck keys, camera turns recorded over RDP, no camera drift up on clicks, exact 1 ms timing, middle and side mouse buttons, your Windows mouse settings used for the replay. Record your runs again for the best result. |
 | 🔑 **Roblox Sign In page** | If the Roblox app logs itself out, the bot starts the game through your browser instead of waiting on the Sign In page. |
 | 📊 **Bot counter** | While the bot farms, it sends a random number (its id) to the author's counter once an hour, so we can see how many bots run. No name, no account, no game data; no IP is stored. |
@@ -86,6 +91,10 @@
 
 ## 🩹 Recent fixes
 
+- **LEAVE not pressed (14.11)** - after Speed Raid (and sometimes Infinity) the LEAVE picture did not match, so the bot waited ~15 s for the teleport. A new LEAVE picture made from two real results screens fixes it.
+- **Wait after REPLAY (14.11, players)** - new setting on the Dimension page (1-60 s, was a fixed 15 s): how long Halloween, Death and other recorded Dimensions wait after REPLAY before the run starts. Extreme keeps its own **Wait after Start**.
+- **Quieter clicks, full window first (14.11, players)** - button sounds are half as loud; a new download opens the full window after Setup instead of the compact one.
+- **Version in the folder name (14.11, players)** - the Download link at the top gives a folder named `AD-bot-0.4.1`.
 - **No author runs in the download (14.11)** - the bot no longer ships the author's Giant Dimension runs (Slot 1 and Slot 3), so UPDATE can never put them into your empty slots. Your own recordings are never touched. Giant without a recording uses the built-in route.
 - **Bot counter (14.11)** - the bot sends a random id once an hour while it farms, so the author can see how many bots run. Nothing else is sent.
 - **Raid closed by the bot (14.11)** - after a game update the AUTO button pictures stopped matching, a false lobby sent the bot to the Bag and Safe mode closed the game in the middle of the raid. New pictures, a colour check of the AUTO button and guards on every lobby / menu / restart action fix it.
@@ -153,9 +162,9 @@
 
 ## 🚀 How to start
 
-1. **Code > Download ZIP** and unpack it.
+1. **[Download AD Bot 0.4.1](https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.1.zip)** and unpack it (folder `AD-bot-0.4.1`). Later versions come with the **UPDATE** button.
 2. Open Roblox, join the game and wait in the lobby.
-3. Run `RaidBot.ahk`. Press **Check now**, fix what it shows, then **Continue** - the compact window opens.
+3. Run `RaidBot.ahk`. Press **Check now**, fix what it shows, then **Continue** - the main window opens (the small compact window is in **Settings**).
 4. Pick the raid and modes.
 5. **F1** start · **F2** stop · **F3** reload.
 

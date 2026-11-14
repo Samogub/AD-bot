@@ -109,7 +109,7 @@ RH2 := 56                                ; row height of the Modes settings rows
 curPage := PageNorm(IniRead(INI, "ui", "page", "home"), &curTab)
 if curPage = "setup"                     ; the Setup page is not remembered between runs
     curPage := "home"
-skin := IniRead(INI, "ui", "skin", "compact") = "compact" && setupDone ? "compact" : "full"   ; the Setup card exists only in the full skin
+skin := IniRead(INI, "ui", "skin", "full") = "compact" && setupDone ? "compact" : "full"   ; the Setup card exists only in the full skin
 cOpen := " " IniRead(INI, "ui", "cOpen", "") " "         ; open groups of the compact skin, space separated
 #Include ui_compact.ahk
 
@@ -500,7 +500,8 @@ SetupClose() {
         IniWrite "1", INI, "setup", "done"
         Log("setup check passed")
         setupOpen := false
-        SetSkin("compact")                                  ; first run: after the Setup check the compact window is the default
+        SetPage("home")                                     ; first run: 14.11 (players) the full window stays, on Home; compact is in Settings
+        IniWrite "full", INI, "ui", "skin"
         return
     }
     setupOpen := false
@@ -1798,6 +1799,9 @@ PageDimension2() {
     Stp2(lx, y0 + RH2 * 3, cw, Format("{:g} s", Round(Num("dimShift", 0) / 1000, 1)), StepCfg.Bind("dimShift", -100, 0, 5000, 0), StepCfg.Bind("dimShift", 100, 0, 5000, 0), "dimShift", lk)
     SRow(lx, y0 + RH2 * 4, cw, "Keep fighting", "Finishes the enemies that are left after the run", 46, lk ? why : "")
     Sw2(lx, y0 + RH2 * 4, cw, cfg["dimFight"] = "1", "sw_dimFight", FlipKey.Bind("dimFight"), lk)
+    rk := lk || dk = "giant"                                  ; Giant waits for the giants on screen, not a timer
+    SRow(lx, y0 + RH2 * 5, cw, "Wait after REPLAY", "Seconds before the run starts again", 150, lk ? why : dk = "giant" ? "Not used by Giant" : "")
+    Stp2(lx, y0 + RH2 * 5, cw, StpFmt(Num("dimReplayWait", 15), "s"), StepCfg.Bind("dimReplayWait", -1, 1, 60, 15), StepCfg.Bind("dimReplayWait", 1, 1, 60, 15), "dimReplayWait", rk)
     rt := FrzGet("route" dk cfg["dimMethod"], DimRoute.Bind(dk))
     rec := rt.Length ? rt.Length " steps · " Round(rt[rt.Length][1] / 1000, 1) " s" : "No recording"
     SRow(rx, y0, cw, "Recording", rec, 196, , lk)
