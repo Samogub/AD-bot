@@ -9,9 +9,9 @@
 ![autohotkey](https://img.shields.io/badge/AutoHotkey-v2-1f1f2e?style=for-the-badge&logo=autohotkey)
 ![screen](https://img.shields.io/badge/screen-1920x1080-1f1f2e?style=for-the-badge)
 
-### [⬇️ Download AD Bot 0.4.1](https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.1.zip)
+<a href="https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.1.zip"><img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD-AD%20Bot%200.4.1-2ea043?style=for-the-badge" height="44" alt="Download AD Bot 0.4.1"></a>
 
-<sub>The folder inside is named after the version (`AD-bot-0.4.1`), so you always know which build you have.</sub>
+<sub>Use this button, not the green <b>Code → Download ZIP</b>: here the folder is named after the version (<code>AD-bot-0.4.1</code>), so you always know which build you have.</sub>
 
 <img src="docs/hero.gif" width="640" alt="AD Bot 0.4.0, HUD 2.0">
 
