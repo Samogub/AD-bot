@@ -5,6 +5,7 @@
 AUTO_OFF_PTS := [[-6, 6], [54, 6], [24, -16]]    ; diamond fill (red) at offsets from the letters' top-left: guards against white blobs
 autoTries := 0, autoAt := 0, autoWinAt := 0, autoFailLogged := false, autoOnLogged := false
 autoSeen := 0                                    ; last tick with a sign of the run (ENEMIES LEFT or the Auto button)
+realFightAt := 0                                 ; last tick the ENEMIES LEFT picture itself matched (RunButtonSeen: way out of a wrong colour hit)
 autoBtnAt := 0                                   ; last tick the Auto button was seen
 autoOffSince := 0, autoWaitLogAt := 0, autoFailN := 0   ; OFF stability: first tick of the current uninterrupted OFF sighting
 autoLook := '', autoRGB := ''                  ; last AutoOffVisible look: red|black and the rgb of the deciding diamond point
@@ -51,7 +52,9 @@ AutoBlind(kind) {
     if !autoBlindLogged {
         autoBlindLogged := true
         Log(kind ": Auto: the button is not recognised by the pictures - using its colours (brightness " Round(m) " = " (st != "" ? st : "unclear") ")")
-        Screenshot("auto_missing")                          ; how the button really looks on this PC
+        static shotDone := false
+        if !shotDone                                        ; how the button really looks on this PC (once: it costs ~0.3 s before the press)
+            shotDone := true, Screenshot("auto_missing")
     }
     if st = "on" {
         autoBlindSince := 0
@@ -73,7 +76,7 @@ AutoBlind(kind) {
         return
     if !autoBlindSince
         autoBlindSince := A_TickCount
-    if A_TickCount - autoBlindSince < 2500
+    if A_TickCount - autoBlindSince < 1000
         return
     if autoBlindTries >= 3 && A_TickCount - autoAt < 15000
         return
@@ -111,6 +114,62 @@ AutoOnVisible() {
     return FindImg("auto_on.png", &x, &y, b[1], b[2], b[3], b[4])
 }
 
+; The AUTO button without the pictures: white letters in the middle of the diamond + its colours. "on" = bright pink / violet,
+; "off" = dark red, "" = no button. 14.11: after a game update the pictures stopped matching (the letters moved by 1 px); a running
+; raid was then taken for the lobby (a false PLAY), the bot went for the Bag and Safe mode closed the game in the middle of the raid.
+; Colours measured on 22 shots of 14.11: ON point 1 ~(250,120,180) and point 4 ~(180,150,230); OFF point 1 ~(141,72,75), mean ~72.
+AutoBtnByColour() {
+    try {
+        px := GrabPixels(AUTO_BTN[1] - 34, AUTO_BTN[2] - 8, 64, 14)    ; the letters: OFF 714..761 x 846..857, ON 706..768 x 848..856
+        white := 0
+        Loop 64 * 14 {
+            c := NumGet(px, (A_Index - 1) * 4, "uint")
+            white += (c >> 16 & 0xFF) > 215 && (c >> 8 & 0xFF) > 215 && (c & 0xFF) > 215
+        }
+        if white < 140 || white > 320                     ; the letters have ~215 (OFF) / ~231 (ON) white px
+            return ""
+        d := AutoDiamond()                                ; 8 points x r, g, b
+        m := 0
+        for x in d
+            m += x
+        m := m / d.Length
+        if d[1] > 200 && d[3] > 120 && d[2] < 170 && d[12] > 180 && m >= 125   ; point 1 pink, point 4 violet
+            return "on"
+        if d[1] >= 90 && d[1] <= 200 && d[1] - d[2] >= 40 && d[1] - d[3] >= 40 && m <= 110   ; point 1 dark red
+            return "off"
+        black := true                                     ; the near-black OFF diamond (raid 4.11, 5.11, 14.11 07:04): all 8 points dark
+        Loop 8
+            black := black && Max(d[A_Index * 3 - 2], d[A_Index * 3 - 1], d[A_Index * 3]) < 70
+        if black
+            return "off"
+    }
+    return ""
+}
+
+; any sign of the AUTO button (pictures or colours): it exists only inside a run - never the lobby.
+; Way out: the colours alone, seen for 10 min with no fight recognised, are not trusted any more (logged once) until they go away -
+; a wrong colour hit outside a run must not stop the bot for ever.
+RunButtonSeen() {
+    static colSince := 0, distrust := false, lastCall := 0, lastRes := false
+    if A_TickCount - lastCall < 200                       ; called 2-3 times per tick: one look per 0.2 s is enough
+        return lastRes
+    gap := A_TickCount - lastCall, lastCall := A_TickCount
+    if AutoOffVisible() || AutoOnVisible()
+        return lastRes := true
+    if AutoBtnByColour() = "" {
+        colSince := 0, distrust := false
+        return lastRes := false
+    }
+    if A_TickCount - realFightAt < 60000 || !colSince || gap > 5000
+        colSince := A_TickCount                           ; a fight is seen (or the first sighting / after a long pause): the colours are a real run
+    if !distrust && A_TickCount - colSince > 600000 {
+        distrust := true
+        Log("WARNING: the AUTO button colours were seen for 10 min without a fight - not trusting them now")
+        Screenshot("auto_colour_stuck")
+    }
+    return lastRes := !distrust
+}
+
 ; The ENEMIES LEFT picture flickers on bright maps (4.11: one raid became 5 "fights"), so the run stays "in fight"
 ; while ENEMIES LEFT or the Auto button is seen, and after that until the lobby (PLAY) shows or 3 min pass without any sign.
 ; Returns the fight state to use instead of the raw ENEMIES LEFT result.
@@ -118,14 +177,20 @@ AutoRunOn(rawFight) {
     global autoSeen, autoBtnAt, fightSince
     if cfg["bossAuto"] != "1" || !BossFight()
         return rawFight
-    if FindImg("play.png", &px, &py, 1500, 800, 1920, 1060) {    ; lobby: the run is over (or never began); ENEMIES LEFT seen here is a false hit
+    pic := AutoOffVisible() || AutoOnVisible()
+    if pic
+        autoBtnAt := A_TickCount                            ; only the pictures: AutoEnsure uses the colours (AutoBlind) while this is 0
+    btn := pic || RunButtonSeen()                        ; 14.11: the colours too - outdated pictures must not end a running raid
+    ; lobby: the run is over (or never began); ENEMIES LEFT seen here is a false hit. With the AUTO button on screen a PLAY hit is false.
+    ; and only after 5 s with no sign of the run (14.11: the button is hidden for a moment at a death - a false PLAY then cut the raid)
+    static btnAt := 0
+    if btn
+        btnAt := A_TickCount
+    if !btn && A_TickCount - btnAt > 5000 && FindImg("play.png", &px, &py, 1500, 800, 1920, 1060) {
         if fightSince
             AutoRunEnd()
         return false
     }
-    btn := AutoOffVisible() || AutoOnVisible()
-    if btn
-        autoBtnAt := A_TickCount
     if rawFight || btn {
         autoSeen := A_TickCount
         return true
@@ -169,11 +234,14 @@ AutoClickBtn() {
 }
 
 ; press AUTO only when the OFF look is really seen (never blindly: while dead Auto stays on)
-; and only when it has been seen steadily: 1 s for the red diamond, 2.5 s for the near-black one (it can also mean "button unavailable")
+; and only when it has been seen steadily: 0.3 s for the red diamond, 1.5 s for the near-black one (it can also mean "button unavailable")
 AutoEnsure() {
     global autoTries, autoAt, autoWinAt, autoFailLogged, autoOnLogged, autoOffSince, autoWaitLogAt, autoFailN, autoLook, autoRGB, autoNoneSince, autoMissLogged
     kind := lastEntered = "speed" ? "Speed Raid" : lastEntered = "infinity" ? "Infinity" : "raid"
-    if !autoBtnAt && fightSince && A_TickCount - fightSince >= 8000 {   ; the pictures never matched in this run: use the colours of the button
+    ; 14.11 (player: "it takes ~15 s to press Auto"): the waits below were 8 s / 2.5 s / 1 s - shortened
+    ; 14.11 06:50: on the author's PC too the pictures stopped matching (game update?) and the colours were only used after 4 s - now
+    ; at once: off 72 / on 159 brightness is a clear difference. The pictures, when they match, take over (autoBtnAt).
+    if !autoBtnAt && fightSince {   ; the pictures never matched in this run: use the colours of the button
         AutoBlind(kind)
         return
     }
@@ -186,7 +254,7 @@ AutoEnsure() {
         return
     if offNow {
         stable := A_TickCount - autoOffSince
-        if stable < (autoLook = "black" ? 2500 : 1000) {
+        if stable < (autoLook = "black" ? 1500 : 300) {
             if A_TickCount - autoWaitLogAt >= 10000 {
                 autoWaitLogAt := A_TickCount
                 Log(kind ": Auto: off seen, waiting stable (" autoLook ")")

@@ -366,6 +366,7 @@ if A_Args.Length && A_Args[1] = "fight"                 ; тест бою: ли�
 #Include summary.ahk
 #Include webhook.ahk
 #Include watch.ahk
+#Include update.ahk                 ; 14.11: UPDATE button (new build on GitHub)
 
 if A_Args.Length                                        ; "start" or "fight" - start at once, without F1
     Start()
@@ -858,6 +859,8 @@ StartupChecks() {
 Start() {
     global running, fightSince, infDrop, curLoadout, loadoutChecked, dimRunAt, dimRetryAt, routeDone, dimHandled, pickFails, pickFailHour, pickMissAt, retryPending, xdimStartAt
     global problemNote, problemNoted, safeBan, safeStrikes, safeLast, safePending, safeWarnKind, xdimMapNow, safePauses, safePauseAt
+    if updBusy                                            ; UPDATE is copying the new files: no farming on half-replaced files
+        return
     problemNote := "", problemNoted := Map(), xdimMapNow := ""
     safeBan := Map(), safeStrikes := Map(), safeLast := Map(), safePending := "", safeWarnKind := "", safePauses := Map(), safePauseAt := Map()   ; a manual start clears Safe mode
     pickFails := 0, pickFailHour := "", pickMissAt := 0
@@ -919,7 +922,7 @@ ProblemWatch(text) {
     global problemNote, problemNoted, safePending, safeWhy
     if !IsSet(problemNoted)                               ; a log line during start-up, before the globals exist
         return
-    static pats := [["loadout", "i)loadout is not yet|loadout \d failed|Bag did not open", 4, "The bot cannot set the loadout: the Bag does not open or the loadout does not change."]
+    static pats := [["loadout", "i)loadout is not yet|loadout \d failed", 4, "The bot cannot set the loadout: the Bag does not open or the loadout does not change."]
         , ["menu", "i)modes menu: (SPEED RAID|DIMENSION) not visible", 3, "The bot does not find the mode buttons in the PLAY menu."]
         , ["screen", "i)screen not recognised for|screen not recognised, clicking", 2, "The bot does not recognise the game screen."]]
     static hits := Map(), busy := false
@@ -973,6 +976,12 @@ SafeRun() {
     global safePending, safeWhy
     mode := safePending, why := safeWhy
     safePending := ""
+    ; 14.11: Safe mode closed the game in the middle of a raid (a lobby problem "seen" during the run). The AUTO button exists only
+    ; inside a run: a lobby / menu problem cannot be real then - no restart, no strike.
+    if RunButtonSeen() {
+        Log("SAFE MODE: not restarting - the AUTO button is on screen, a run is going on (" why ")")
+        return
+    }
     if mode != "" && mode != "none" && mode != "infinity" {     ; Infinity is the way out: it is never paused, only the game is restarted
         ; 10.11 (night log): a ban on the very first problem kept the bot in Infinity all night, though one desync is fixed
         ; by a restart. Now: problems 1 and 2 = only a restart; the 3rd (each within 15 min of the last) = pause 30 / 60 / 120 min.
@@ -1349,7 +1358,7 @@ SetEntered(what) {
 
 ; Кожен тік визначаємо, що на екрані, і робимо один відповідний крок.
 Step() {
-    global partySince, lastCreate, lastFight, lastReset, raidDoneKey, unknownSince, watchStep, raidWalkDue, friendsDone, routeDone, dimRunAt, raidCountAt
+    global partySince, lastCreate, lastFight, lastReset, raidDoneKey, unknownSince, watchStep, raidWalkDue, friendsDone, routeDone, dimRunAt, raidCountAt, realFightAt
     global fightSince, infDrop, portraitSig, walkAt, infLootDone, lastDmg, dmgChanged, searchTurns, raidShotDone, sameReads, learnLeft, comboSeen, lastCombo, lastComboCheck, camYaw, afterRespawn, wasDead, lastRespawnAt, farPress, lastSearch, lastAuto, autoOffAt
     global autoOffAt, charIdx, rewardRaw, rewardReads, rewardRepeat, rdChanges, rdResetNo5, rdResetCombo, lastNo5Reset, lastLoadoutWarn, no5Pending
     global dimHandled                        ; was local here: the reset at the route start never reached DimRetry (only the 1st run per Start was counted/read)
@@ -1365,7 +1374,8 @@ Step() {
     goal := Target()
     ; Infinity: second fight signal - the red AUTO in the HUD; with the game's Auto on, its AUTO ON look too (a RETRY seen
     ; there on the results is harmless: LeaveInfinity handles the results before any fight code)
-    autoOff := lastEntered = "infinity" && (AutoOffVisible() || cfg["infGameAuto"] = "1" && AutoOnVisible())
+    col := lastEntered = "infinity" ? AutoBtnByColour() : ""   ; 14.11: the colours too, so outdated pictures do not cut an Infinity run
+    autoOff := lastEntered = "infinity" && (AutoOffVisible() || col = "off" || cfg["infGameAuto"] = "1" && (AutoOnVisible() || col = "on"))
     static autoOffLogged := false, skipLogAt := 0
     if !fightSince && !autoOff
         autoOffLogged := false
@@ -1381,7 +1391,7 @@ Step() {
     lobbyChk := (lastEntered = "infinity" && goal != "infinity" || lastEntered = "dungeon" || cfg["bossAuto"] = "1" && BossFight()) && (inFight || A_TickCount - lastFight < FIGHT_STICKY)
     ; 11.11 17:05 and 14:08: PLAY / the mode cards were "seen" in the middle of a raid (AUTO ON, boss alive), the raid was cut in pieces,
     ; the bot went for Dimension, found no menu and Safe mode closed the game. The AUTO button exists only inside a run: it is never the lobby.
-    autoRun := cfg["bossAuto"] = "1" && BossFight() && (AutoOffVisible() || AutoOnVisible())
+    autoRun := cfg["bossAuto"] = "1" && BossFight() && RunButtonSeen()
     if lobbyChk && (autoOff || autoRun) {
         if A_TickCount - skipLogAt > 60000
             skipLogAt := A_TickCount, Log("lobby check skipped: AUTO button visible (" (autoRun ? "raid" : "Infinity") ")")
@@ -1391,6 +1401,8 @@ Step() {
         inFight := false
         lastFight := A_TickCount - FIGHT_STICKY
     }
+    if inFight
+        realFightAt := A_TickCount                        ; the raw ENEMIES LEFT match (RunButtonSeen trusts the AUTO colours while fights are seen)
     inFight := AutoRunOn(inFight)                         ; bossAuto: the raid / Speed Raid run stays one fight
     if !inFight && autoOff {
         inFight := true
@@ -1496,13 +1508,15 @@ Step() {
                     return
                 }
             }
+            if lastEntered = "speed" && SpeedLeave()        ; 14.11: LEAVE at once instead of the ~15 s teleport countdown
+                return
             if !raidShotDone && autoBtnAt && A_TickCount - autoBtnAt > 3000 {    ; the Auto button is gone: the end screen is up
                 raidShotDone := true
             }
-            if inFight && RespawnScreen()
+            if inFight && autoOnLogged && RespawnScreen()      ; 14.11: the countdown at the start of a raid looks the same - before Auto is on, keep pressing it
                 SetStatus("death: waiting for respawn (Auto stays on)")
             else {
-                if A_TickCount - fightSince > 2000
+                if A_TickCount - fightSince > 500                 ; 14.11 (player: "~15 s until Auto is pressed"): was 2 s
                     AutoEnsure()
                 SetStatus((lastEntered = "speed" ? "Speed Raid" : "raid") ": Auto, waiting for the end")
             }
@@ -1526,10 +1540,10 @@ Step() {
         }
         ; Infinity with the game's Auto: no skills, AOE, turns or walks - only keep Auto on (as in the raid)
         if lastEntered = "infinity" && cfg["infGameAuto"] = "1" {
-            if inFight && RespawnScreen()
+            if inFight && autoOnLogged && RespawnScreen()      ; 14.11: the countdown at the start of a raid looks the same - before Auto is on, keep pressing it
                 SetStatus("death: waiting for respawn (Auto stays on)")
             else {
-                if inFight && A_TickCount - fightSince > 2000
+                if inFight && A_TickCount - fightSince > 500             ; 14.11: was 2 s (players: Auto pressed late)
                     AutoEnsure()
                 SetStatus("Infinity: Auto, game fights")
             }
@@ -1727,6 +1741,16 @@ Step() {
     }
     if goal = "none" {                                                    ; режими вимкнені: меню не чіпаємо
         SetStatus("modes disabled, waiting for a fight")
+        return
+    }
+    ; 14.11 (a raid closed by the bot): everything below acts on lobby / menu / party pictures - loadout, Bag, PLAY, the modes menu,
+    ; Create, Halloween, blind clicks, restarts. The AUTO button exists only inside a run, so with it on screen any such picture is a
+    ; false hit: wait. (RunButtonSeen stops trusting the colours after 10 min with no fight seen - the bot cannot get stuck here.)
+    if RunButtonSeen() {
+        static inRunLogAt := 0
+        if A_TickCount - inRunLogAt > 60000
+            inRunLogAt := A_TickCount, Log("in a run (AUTO button on screen) - no lobby / menu actions, waiting")
+        SetStatus("in a run (AUTO button visible) - waiting")
         return
     }
     if FindImg("update_logs.png", &x, &y, 200, 150, 900, 520) {                               ; вікно "UPDATE LOGS" після оновлення гри
@@ -1933,7 +1957,7 @@ Step() {
         return
     }
     if FindImg("raid_mode.png", &x, &y, 0, 860, SCR_W, 1000) {                                 ; меню режимів: у світ рейду
-        if cfg["bossAuto"] = "1" && (AutoOffVisible() || AutoOnVisible()) {   ; 11.11: the skill bar of a running raid looked like the card - the AUTO button is only in a run
+        if RunButtonSeen() {   ; 11.11: the skill bar of a running raid looked like the card - the AUTO button is only in a run
             SetStatus("raid: Auto, waiting for the end")
             return
         }
@@ -1967,6 +1991,15 @@ Step() {
         return
     }
     if SeePlay(&x, &y) {               ; лише білі літери PLAY праворуч унизу (фон анімований)
+        ; 14.11: a false PLAY in the middle of a raid sent the bot to the Bag (loadout) and Safe mode closed the game. The AUTO button
+        ; exists only inside a run: with it on screen this is never the lobby - no loadout, no PLAY.
+        if RunButtonSeen() {
+            static falsePlayAt := 0
+            if A_TickCount - falsePlayAt > 60000
+                falsePlayAt := A_TickCount, Log("PLAY seen, but the AUTO button is on screen - still in a run, not acting as in the lobby")
+            SetStatus("in a run (AUTO button visible) - waiting")
+            return
+        }
         if infDrop {
             infDrop := false
             Log("lobby after Infinity was cut off")
@@ -2004,6 +2037,13 @@ Step() {
         SetStatus("pressing PLAY at its usual place")
         ClickXY(1760, 942)
         ParkMouse()
+        return
+    }
+    ; 14.11: the AUTO button exists only inside a run - an "unknown" screen with it is a run the pictures missed: no Esc, no window
+    ; close clicks, no restart (they would break the run)
+    if A_TickCount - unknownSince > UNKNOWN_ESC && RunButtonSeen() {
+        unknownSince := A_TickCount, watchStep := 0
+        Log("  screen not recognised, but the AUTO button is on screen - a run is going on, not pressing Esc")
         return
     }
     if A_TickCount - unknownSince > UNKNOWN_ESC {
@@ -2128,6 +2168,27 @@ LeaveInfinity() {
         ParkMouse()
         Sleep 1500
     }
+    return true
+}
+
+; Speed Raid results (the REWARDS panel with LEAVE at the same place as in Infinity, shot 8.11 12:30): press LEAVE as soon as the
+; rewards are read (or 3 s after the button shows) instead of waiting ~15 s for "Teleporting in N". The raid results have no LEAVE.
+; Only the LEAVE picture triggers it; a wrong hit clicks an empty spot of the fight.
+SpeedLeave() {
+    static seenAt := 0, pressAt := 0
+    if !FindImg("leave.png", &x, &y, 1000, 680, 1450, 840) && !FindImg("leave.png", &x, &y, 1000, 680, 1450, 840, "*110 *TransFF00FF") {
+        seenAt := 0
+        return false
+    }
+    if !seenAt
+        seenAt := A_TickCount
+    if !infLootDone && A_TickCount - seenAt < 3000 || A_TickCount - pressAt < 4000
+        return true                                       ; rewards are still being read / the click needs time to show
+    pressAt := A_TickCount
+    Log("Speed Raid results: pressing LEAVE")
+    SetStatus("Speed Raid results: pressing LEAVE")
+    ClickXY(x + 90, y + 24)
+    ParkMouse()
     return true
 }
 
@@ -2630,7 +2691,7 @@ RunRoute(route) {
         while running && A_TickCount - xdimStartAt < wait {
             SetStatus((kind = "xdim" ? "Extreme" : kind) " Dimension: the run starts in " Ceil((wait - (A_TickCount - xdimStartAt)) / 1000) " s")
             ; 8.11 13:18:24: right after REPLAY the reload showed PLAY and cancelled the run - not the lobby yet
-            if A_TickCount - dimRetryAt > 30000 && FindImg("play.png", &px, &py, 1500, 800, 1920, 1060) {
+            if A_TickCount - dimRetryAt > 30000 && FindImg("play.png", &px, &py, 1500, 800, 1920, 1060) && !RunButtonSeen() {   ; 14.11: not with the AUTO button on screen (a false PLAY)
                 Log("  Extreme Dimension: lobby seen while waiting - run cancelled")
                 xdimStartAt := 0
                 return
@@ -2644,7 +2705,7 @@ RunRoute(route) {
         n := MobsCount()
         hud := (n >= 500 || kind != "giant") && FindImg("enemies_left.png", &px, &py, h[1] - 12, h[2] - 12, h[1] + 66, h[2] + 38, "*80 *TransFF00FF")
         strong := kind = "giant" && enteredFresh && n >= 800 ? strong + 1 : 0   ; 11.11: bot started inside a raid (old lastEntered=dungeon) took the raid boss for the giants and played the run
-        ok := (hud || strong >= 3) && !FindImg("play.png", &px, &py, 1500, 800, 1920, 1060)
+        ok := (hud || strong >= 3) && (!FindImg("play.png", &px, &py, 1500, 800, 1920, 1060) || RunButtonSeen())
             && !FindImg("dimension.png", &px, &py, 260, 880, 620, 990)
         if ok && hud
             seen := true

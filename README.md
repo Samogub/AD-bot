@@ -4,7 +4,7 @@
 
 **Farming bot for Anime Dimensions Simulator (Roblox) that keeps going when Roblox itself fails.**
 
-![version](https://img.shields.io/badge/version-0.4.0-b0449a?style=for-the-badge)
+![version](https://img.shields.io/badge/version-0.4.1-b0449a?style=for-the-badge)
 ![windows](https://img.shields.io/badge/Windows-10%20%2F%2011-1f1f2e?style=for-the-badge&logo=windows)
 ![autohotkey](https://img.shields.io/badge/AutoHotkey-v2-1f1f2e?style=for-the-badge&logo=autohotkey)
 ![screen](https://img.shields.io/badge/screen-1920x1080-1f1f2e?style=for-the-badge)
@@ -19,6 +19,17 @@
 > To download anyway: in Chrome open **Downloads** and press **Keep**; in Windows Defender open **Protection history** and press **Allow**.
 
 > Roblox disconnects, freezes on a teleport, loops a retry screen or just closes? AD/BOT was made for players for whom this happens **all the time**. It notices the problem, restarts the game, joins again and carries on, so your night run does not end at the first crash.
+
+## 🆕 New in 0.4.1
+
+| | |
+|---|---|
+| ⬆️ **UPDATE button** | The bot checks GitHub by itself. When a new version is out, a green **UPDATE** button shows up: one click downloads it, keeps your settings and recorded runs, and restarts the bot. (Download 0.4.1 by hand once - from then on the button does it.) |
+| ⚡ **Faster Auto** | Auto is pressed about 1 s after a Raid, Speed Raid or Infinity run starts (was up to 15-50 s). The bot also knows the AUTO button by its colours, so a game update cannot hide it again. |
+| 🛡️ **Never closes a running raid** | While the AUTO button is on screen the bot does no lobby or menu actions, no Safe mode restart, no Esc - a false "lobby" can no longer close your raid. |
+| 🚪 **Speed Raid LEAVE** | After a Speed Raid the bot presses LEAVE right after the rewards are read, instead of waiting ~15 s for the teleport. |
+| 🎛️ **Recorder 2.0 fixed** | No lost or stuck keys, camera turns recorded over RDP, no camera drift up on clicks, exact 1 ms timing, middle and side mouse buttons, your Windows mouse settings used for the replay. Record your runs again for the best result. |
+| 🔑 **Roblox Sign In page** | If the Roblox app logs itself out, the bot starts the game through your browser instead of waiting on the Sign In page. |
 
 ## ✨ New in 0.4.0
 
@@ -73,6 +84,9 @@
 </details>
 
 ## 🩹 Recent fixes
+
+- **Raid closed by the bot (14.11)** - after a game update the AUTO button pictures stopped matching, a false lobby sent the bot to the Bag and Safe mode closed the game in the middle of the raid. New pictures, a colour check of the AUTO button and guards on every lobby / menu / restart action fix it.
+- **Auto pressed late** - the raid start countdown was taken for a death screen, and the colour check waited 8 s. Auto is now pressed about 1 s into the run.
 
 - **Recorder 2.0 rebuilt for exact replays** - no more stuck keys or missing presses (quick taps, keys from macro software), camera turns recorded over RDP / virtual machines / Parsec / tablets, the camera no longer drifts up on clicks with shift-lock, the replay uses the recording PC's Windows mouse settings (put back after), 1 ms timing, clicks no longer 0.1 s late, middle and side mouse buttons recorded, sensitivity field works like in Roblox (3 = 3.00). Record your runs again for the best result.
 - **Restart stuck on the Roblox Sign In page** - the Roblox app keeps logging itself out, so after a restart the game stayed on Sign In. The bot now sees that page and starts the game through your browser instead. Stay signed in at roblox.com in your default browser and tick "Always allow" on the "Open Roblox?" prompt once.

@@ -5,7 +5,7 @@
 ; If a font is not installed, put its .ttf files into the fonts\ folder next to the script, else Segoe UI / Consolas is used.
 
 LOGO_T := 52, LOGO_S := LOGO_T / 100          ; logo tile size in px and its scale
-APP_VERSION := "0.4.0"                  ; shown under the title
+APP_VERSION := "0.4.1"                  ; shown under the title
 APP_AUTHOR  := "Samogub"                 ; shown next to the version
 
 ; ------------------------------ themes ------------------------------
@@ -2125,6 +2125,12 @@ DrawSidebar2() {
         NavItem2(it[1], it[2], it[3], y, curPage = it[1], SetPage.Bind(it[1]))
         y += 42
     }
+    if UpdateAvail() {                                   ; 14.11: a newer build is on GitHub (update.ahk)
+        hot := IsHot("update")
+        GradRR(12, y + 10, 166, 36, 12, "3DD68C", hot ? 255 : 215, "1FA866", hot ? 255 : 215)
+        Tx("UPDATE", "ui", 14, 1, "06210F", 12, y + 10, 166, 36, 1)
+        Hit(12, y + 10, 166, 36, "update", UpdateRun)
+    }
     NavItem2("setup", "Setup", SetupFails() ? 0xE7BA : 0xE73E, GH - 18 - 40 - 42, curPage = "setup", SetPage.Bind("setup"), SetupFails())
     NavItem2("sound", "Sound", cfg["sfx"] = "1" ? 0xE767 : 0xE74F, GH - 18 - 40, false, FlipKey.Bind("sfx"), 0, true)
 }
@@ -2539,7 +2545,7 @@ ConnNoteOff() {
     UiInvalidate()
 }
 
-; roblox.com/share?code=abc123... (no https://www., cut to fit)
+; roblox.com/share?code=8d0a16... (no https://www., cut to fit)
 LinkShort(link) {
     s := RegExReplace(link, "i)^https?://(www\.)?", "")
     return StrLen(s) > 38 ? SubStr(s, 1, 36) "…" : s

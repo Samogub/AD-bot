@@ -533,7 +533,13 @@ CompactPaint() {
     CFrame(0, 0, W, H, "FFFFFF", 140)
     ; header (drag area: empty parts of y < 62 start a window drag in UiClick)
     LTx("AD/BOT", 10, GRY, 12, 8, 120, 16, 2)
-    Tx("v" APP_VERSION " PUBLIC VERSION", "mono", 10, 0, GRY, W - 228, 8, 160, 16, 2)
+    if !UpdateAvail()                                        ; the UPDATE pill takes this place
+        Tx("v" APP_VERSION " PUBLIC VERSION", "mono", 10, 0, GRY, W - 228, 8, 160, 16, 2)
+    else {                                       ; 14.11: a newer build is on GitHub (update.ahk)
+        CRect(W - 150, 5, 84, 20, "3DD68C", IsHot("update") ? 255 : 200)
+        Tx("UPDATE", "ui", 11, 1, "06210F", W - 150, 5, 84, 20, 1)
+        Hit(W - 150, 5, 84, 20, "update", UpdateRun)
+    }
     for b in [["min", W - 58], ["close", W - 32]] {         ; same actions as the full UI window buttons
         if IsHot(b[1])
             CRect(b[2], 4, 22, 20, "FFFFFF", 20)
