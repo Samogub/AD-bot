@@ -838,7 +838,8 @@ HotbarDraw(raidT, speedT, status) {
     goal := cfg["fightOnly"] = "1" ? "fight" : GoalKey()
     gt := goal = "raid" ? "Raid" : goal = "speed" ? "Speed" : goal = "infinity" ? "Inf" : goal = "dungeon" ? "Dim" : goal = "fight" ? "Fight" : "Idle"
     head := gt " · run " SessRuns()
-    key := pulse "|" head "|" raidT "|" speedT "|" status "|" hbW
+    upd := UpdateAvail()                                  ; 14.11: a new build on GitHub - the bar says so (F2 stops, then UPDATE in the window)
+    key := pulse "|" head "|" raidT "|" speedT "|" status "|" hbW "|" upd
     if key != hbKey || !hbBmp {
         hbKey := key
         real := gr
@@ -859,8 +860,9 @@ HotbarDraw(raidT, speedT, status) {
             Tx(t, "title", 11, 0, "777777", x, 0, 120, HB_H)
             x += TxW(t, "title", 11, 0) + 14
         }
-        rw := TxW("F2 · F3", "title", 11, 0)
-        Tx("F2 · F3", "title", 11, 0, "666666", hbW - 14 - rw, 0, rw + 6, HB_H, 2)
+        rt := upd ? "UPDATE ready · F2" : "F2 · F3"
+        rw := TxW(rt, "title", 11, upd)
+        Tx(rt, "title", 11, upd, upd ? "3DD68C" : "666666", hbW - 14 - rw, 0, rw + 6, HB_H, 2)
         if hbW - 14 - rw - 12 - x > 20
             Tx(status, "title", 11, 0, "DDDDDD", x, 0, hbW - 14 - rw - 12 - x, HB_H)   ; cut with an ellipsis (StrFmt trimming)
         hbmNew := ToHbm(cv)

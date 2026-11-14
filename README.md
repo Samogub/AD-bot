@@ -93,7 +93,8 @@
 
 - **LEAVE not pressed (14.11)** - after Speed Raid (and sometimes Infinity) the LEAVE picture did not match, so the bot waited ~15 s for the teleport. A new LEAVE picture made from two real results screens fixes it.
 - **Wait after REPLAY (14.11, players)** - new setting on the Dimension page (1-60 s, was a fixed 15 s): how long Halloween, Death and other recorded Dimensions wait after REPLAY before the run starts. Extreme keeps its own **Wait after Start**.
-- **Quieter clicks, full window first (14.11, players)** - button sounds are half as loud; a new download opens the full window after Setup instead of the compact one.
+- **UPDATE in the bar over the game (14.11, players)** - while the bot farms, the small bar over the game shows a green **UPDATE ready · F2** when a new version is out: stop with F2 and press **UPDATE** in the window.
+- **New sounds, full window first (14.11, players)** - calmer, quieter button sounds; a new download opens the full window after Setup instead of the compact one.
 - **Version in the folder name (14.11, players)** - the Download link at the top gives a folder named `AD-bot-0.4.1`.
 - **No author runs in the download (14.11)** - the bot no longer ships the author's Giant Dimension runs (Slot 1 and Slot 3), so UPDATE can never put them into your empty slots. Your own recordings are never touched. Giant without a recording uses the built-in route.
 - **Bot counter (14.11)** - the bot sends a random id once an hour while it farms, so the author can see how many bots run. Nothing else is sent.
