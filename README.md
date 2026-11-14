@@ -59,7 +59,7 @@
 |---|---|
 | 🔥 **Extreme Dimension** | Enters from the lobby, picks Easy / Normal / Nightmare / Extreme, presses Start, waits **Wait after Start** (15 s, also after Replay) and plays your recording from `dimension\extreme`. **It ships empty: record your own run.** While it is on, the normal Dimension is off. Uses loadout 2. |
 | 🎃 **Halloween and Death Dimension** | New choices next to Giant. **No runs are included** - record your own with the Recorder. |
-| 🗿 **Giant Dimension slots** | Slot 1 = the run from before (`dimension\giant`), Slot 2 = the built-in run, **Slot 3 = a new run by the author** (`dimension\giant3`), Slots 4-5 = your own. |
+| 🗿 **Giant Dimension slots** | Slot 2 = the built-in run, Slots 1, 3, 4, 5 = your own recordings (since 0.4.1 no author runs are included). |
 | ⚔️ **Raid picker and Group Finder** | Pick the raid from a list. The bot joins it through Group Finder and waits in the queue. |
 | ⏱️ **LEAVE AT** | In System: the minute and second of the hour when the bot leaves for the raid. |
 | 🩺 **Better Setup check** | Checks that Roblox runs first, then really looks for the PLAY button, reads the scale of the monitor the game is on, warns about a self-hiding taskbar. After **Stop**, a yellow plate tells what went wrong and how to fix it. |
@@ -86,6 +86,7 @@
 
 ## 🩹 Recent fixes
 
+- **No author runs in the download (14.11)** - the bot no longer ships the author's Giant Dimension runs (Slot 1 and Slot 3), so UPDATE can never put them into your empty slots. Your own recordings are never touched. Giant without a recording uses the built-in route.
 - **Bot counter (14.11)** - the bot sends a random id once an hour while it farms, so the author can see how many bots run. Nothing else is sent.
 - **Raid closed by the bot (14.11)** - after a game update the AUTO button pictures stopped matching, a false lobby sent the bot to the Bag and Safe mode closed the game in the middle of the raid. New pictures, a colour check of the AUTO button and guards on every lobby / menu / restart action fix it.
 - **Auto pressed late** - the raid start countdown was taken for a death screen, and the colour check waited 8 s. Auto is now pressed about 1 s into the run.
