@@ -64,7 +64,7 @@
 |---|---|
 | 🔥 **Extreme Dimension** | Enters from the lobby, picks Easy / Normal / Nightmare / Extreme, presses Start, waits **Wait after Start** (15 s, also after Replay) and plays your recording from `dimension\extreme`. **It ships empty: record your own run.** While it is on, the normal Dimension is off. Uses loadout 2. |
 | 🎃 **Halloween and Death Dimension** | New choices next to Giant. **No runs are included** - record your own with the Recorder. |
-| 🗿 **Giant Dimension slots** | Slot 2 = the built-in run, Slots 1, 3, 4, 5 = your own recordings (since 0.4.1 no author runs are included). |
+| 🗿 **Giant Dimension slots** | All 5 slots are yours (`dimension\giant`, `giant2`-`giant5`). An empty slot plays the built-in run; UPDATE never writes into a slot. |
 | ⚔️ **Raid picker and Group Finder** | Pick the raid from a list. The bot joins it through Group Finder and waits in the queue. |
 | ⏱️ **LEAVE AT** | In System: the minute and second of the hour when the bot leaves for the raid. |
 | 🩺 **Better Setup check** | Checks that Roblox runs first, then really looks for the PLAY button, reads the scale of the monitor the game is on, warns about a self-hiding taskbar. After **Stop**, a yellow plate tells what went wrong and how to fix it. |
@@ -81,7 +81,7 @@
 |---|---|
 | 🪟 **New compact interface** | A small window with all settings in fold-out groups. Opens by default after the first Setup check. |
 | 🖥️ **Classic interface, improved** | Still here: **FULL UI** in the System group or **CHARACTER & STATS**. |
-| 🗿 **Giant Dimension** | Plays a recorded run instead of Infinity. Method 1 = `dimension\giant\log.txt`, Method 2 = built-in run, or your own recording in `dimension\giant2\log.txt`. |
+| 🗿 **Giant Dimension** | Plays a recorded run instead of Infinity. Each slot plays your own recording; an empty slot plays the built-in run. |
 | 🎛️ **Recorder** | `Edit the run`: Wait +/-100 ms, add key press / key down / key up, edit or delete rows. |
 | 🎵 **Music** | Plays in the compact window. Turn it off in System > MUSIC, or add your own `.m4a` to `music`. |
 | 🧭 **Smarter lobby check** | Lobby is also found by the **BAG** text when PLAY cannot be read (e.g. under the "Activate Windows" watermark). |

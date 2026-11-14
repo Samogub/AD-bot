@@ -1833,7 +1833,8 @@ PageDimension2() {
     SRow(lx, y0 + RH2 * 5, cw, "Wait after REPLAY", "Seconds before the run starts again", 150, lk ? why : dk = "giant" ? "Not used by Giant" : "")
     Stp2(lx, y0 + RH2 * 5, cw, StpFmt(Num("dimReplayWait", 15), "s"), StepCfg.Bind("dimReplayWait", -1, 1, 60, 15), StepCfg.Bind("dimReplayWait", 1, 1, 60, 15), "dimReplayWait", rk)
     rt := FrzGet("route" dk cfg["dimMethod"], DimRoute.Bind(dk))
-    rec := rt.Length ? rt.Length " steps · " Round(rt[rt.Length][1] / 1000, 1) " s" : "No recording"
+    rec := rt == DUNGEON_ROUTE ? "Empty slot - the built-in run is played"   ; 14.11: every slot is the player's; only an empty Giant slot falls back
+        : rt.Length ? rt.Length " steps · " Round(rt[rt.Length][1] / 1000, 1) " s" : "No recording"
     SRow(rx, y0, cw, "Recording", rec, 196, , lk)
     by := y0 + (RH2 - 34) // 2
     Btn(rx + cw - 196, by, 96, 34, "Recorder", "dim_edit", DimEdit, true, "", lk)
