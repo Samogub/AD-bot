@@ -91,6 +91,8 @@
 
 ## 🩹 Recent fixes
 
+- **New raid: Tengu Raid (14.11, players)** - pick **Tengu** in the raid list; the bot finds it by name in Create and in Group Finder.
+- **Extreme Dimension no longer cancelled (14.11, players)** - a PLAY-like picture seen right after Start cancelled the run, so only the skills were pressed. Extreme now always waits and plays the run.
 - **Infinity: Reset to Assist 1 (14.11, players)** - new optional switch on the Infinity page: once at the start of each run the bot presses Esc-R-Enter, so Assist 1 comes out (one character can be both main and assist). Off by default.
 - **Giant detection switch (14.11, players)** - Dimension page: **Giant detection** on = Giant waits for the giants on screen after RETRY (as before); off = the run starts **Wait after REPLAY** seconds after RETRY, with no extra waits. The wait row is greyed out while detection is on.
 - **Raid: failed teleport (14.11, players)** - when the game answers "Failed to teleport. Exit the teleporter and try again" the modes window stayed open and the bot took the PLAY button behind it for the lobby. Now it closes the window after 6 s and tries again.

@@ -21,7 +21,7 @@ THEMES := Map(
     "ember",    {lite: 0, ov: "FFFFFF", bg: "0D0806", card: "1A1210", field: "2B1D18", text: "F7ECE3", dim: "A58B7C", on: "FFB86B", off: "3D2A23", idle: "6E5347", acc: "EE7A3C", acc2: "B8365A", hi: "FFC48A", sb: "0D0806", g1: "4A1F0C", lin: "EE7A3C"},
     "ironrose", {lite: 0, ov: "FFFFFF", bg: "060A11", card: "0F171F", field: "19262F", text: "E3EEF0", dim: "7E9BA2", on: "A6D8D8", off: "21313A", idle: "4B6670", acc: "5E8F9B", acc2: "24445A", hi: "AFD8DD", sb: "060A11", g1: "24445A", lin: "5E8F9B"},
     "author",   {lite: 0, ov: "FFFFFF", bg: "08080A", card: "131316", field: "202024", text: "ECECEF", dim: "9A9AA2", on: "CFCFD8", off: "2E2E34", idle: "5E5E66", acc: "7B7D8A", acc2: "3E3F4A", hi: "E4E2EC", sb: "08080A", g1: "2E2E34", lin: "7B7D8A"})
-RAIDS_READY := " divine halloween shiro saiya sungomi tiger dual monke cursed "   ; raids that can be picked (Group Finder finds them by name)
+RAIDS_READY := " divine halloween shiro saiya sungomi tiger dual monke cursed tengu "   ; raids that can be picked (Group Finder finds them by name)
 THEME_ORDER := ["nocturne", "cosmos", "sakura", "midnight", "aurora", "metallic", "ironrose", "ember", "author"]
 THEME_TITLES := Map("nocturne", "Nocturne", "cosmos", "Cosmos", "author", "Graphite", "midnight", "Midnight Sakura", "metallic", "Metallic", "ironrose", "Iron Rose")          ; shown instead of the capitalised key
 

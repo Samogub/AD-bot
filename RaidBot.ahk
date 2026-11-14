@@ -53,7 +53,8 @@ RAIDS := Map(
     "tiger",     ["", 0, "Tiger Raid", "i)Tiger"],
     "dual",      ["", 0, "Dual Wielder Raid", "i)Wielder"],
     "monke",     ["", 0, "Monke Raid", "i)Monke"],
-    "cursed",    ["", 0, "Cursed Sage Raid", "i)Cursed|Sage"])
+    "cursed",    ["", 0, "Cursed Sage Raid", "i)Cursed|Sage"],
+    "tengu",     ["", 0, "Tengu Raid", "i)Tengu"])
 ; dungeon (experimental): found in the Create list by name, like a raid without a picture
 DUNGEON := ["", 0, "Giant Dimension", "i)Giant"]
 ; the plain Dimensions to pick (11.11, cards read from the Create list): title, OCR pattern. Only Giant has a built-in run; every other one
@@ -2724,10 +2725,15 @@ RunRoute(route) {
     if kind = "xdim" || xdimStartAt {                     ; Extreme: the map is different every day - the run starts a set time after Start
         wait := Num(kind = "xdim" ? "xdimWait" : "dimReplayWait", 15) * 1000   ; 8.11: also after REPLAY in Halloween / Death (the HUD start missed the replayed run); 14.11 own setting
         xdimStartAt := xdimStartAt || A_TickCount
+        left := false                                     ; 14.11 21:10 (player): the old lobby is still on screen for the first seconds after Start - that PLAY cancelled the run
         while running && A_TickCount - xdimStartAt < wait {
             SetStatus((kind = "xdim" ? "Extreme" : kind) " Dimension: the run starts in " Ceil((wait - (A_TickCount - xdimStartAt)) / 1000) " s")
-            ; 8.11 13:18:24: right after REPLAY the reload showed PLAY and cancelled the run - not the lobby yet
-            if A_TickCount - dimRetryAt > 30000 && FindImg("play.png", &px, &py, 1500, 800, 1920, 1060) && !RunButtonSeen() {   ; 14.11: not with the AUTO button on screen (a false PLAY)
+            ; 8.11 13:18:24: right after REPLAY the reload showed PLAY and cancelled the run - not the lobby yet.
+            ; Now: PLAY is a cancel only after it was gone once (the loading screen) and came back. Extreme: never (21:16 - a PLAY-like look 4 s after Start in the map cancelled it again).
+            playNow := kind != "xdim" && A_TickCount - dimRetryAt > 30000 && FindImg("play.png", &px, &py, 1500, 800, 1920, 1060) && !RunButtonSeen()   ; not with the AUTO button on screen (a false PLAY)
+            if !playNow
+                left := true
+            else if left {
                 Log("  Extreme Dimension: lobby seen while waiting - run cancelled")
                 xdimStartAt := 0
                 return
