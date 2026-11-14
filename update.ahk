@@ -13,6 +13,9 @@ BuildLocal() {
 }
 
 UpdateAvail() {
+    global updBusy, updRemote
+    if !IsSet(updBusy) || !IsSet(updRemote)               ; the HUD is drawn before this file's lines above have run
+        return false
     loc := BuildLocal()
     return !updBusy && IsDigit(loc) && loc != "" && IsDigit(updRemote) && updRemote != "" && Number(updRemote) > Number(loc)
 }
@@ -53,7 +56,7 @@ UpdateCheck() {
 
 UpdateRun(*) {
     global updBusy
-    if updBusy || !UpdateAvail()
+    if !UpdateAvail() || updBusy
         return
     if MsgBox("Update AD Bot to the newest version from GitHub?`n`nYour settings and recorded runs stay. The bot stops, downloads the update (up to a minute) and starts again.", "AD Bot - UPDATE", "OKCancel Iconi 4096") != "OK"
         return

@@ -359,6 +359,7 @@ if A_Args.Length && A_Args[1] = "fight"                 ; тест бою: ли�
     cfg["fightOnly"] := "1"
 
 ; ------------------------- Interface (see ui.ahk) -------------------------
+#Include update.ahk                 ; 14.11: UPDATE button (new build on GitHub) - before ui.ahk: the HUD reads its variables at once
 #Include ui.ahk
 #Include auto_boss.ahk
 #Include rewards.ahk
@@ -366,7 +367,6 @@ if A_Args.Length && A_Args[1] = "fight"                 ; тест бою: ли�
 #Include summary.ahk
 #Include webhook.ahk
 #Include watch.ahk
-#Include update.ahk                 ; 14.11: UPDATE button (new build on GitHub)
 
 if A_Args.Length                                        ; "start" or "fight" - start at once, without F1
     Start()
@@ -859,7 +859,7 @@ StartupChecks() {
 Start() {
     global running, fightSince, infDrop, curLoadout, loadoutChecked, dimRunAt, dimRetryAt, routeDone, dimHandled, pickFails, pickFailHour, pickMissAt, retryPending, xdimStartAt
     global problemNote, problemNoted, safeBan, safeStrikes, safeLast, safePending, safeWarnKind, xdimMapNow, safePauses, safePauseAt
-    if updBusy                                            ; UPDATE is copying the new files: no farming on half-replaced files
+    if IsSet(updBusy) && updBusy                          ; UPDATE is copying the new files: no farming on half-replaced files
         return
     problemNote := "", problemNoted := Map(), xdimMapNow := ""
     safeBan := Map(), safeStrikes := Map(), safeLast := Map(), safePending := "", safeWarnKind := "", safePauses := Map(), safePauseAt := Map()   ; a manual start clears Safe mode
