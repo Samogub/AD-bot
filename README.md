@@ -91,6 +91,7 @@
 
 ## 🩹 Recent fixes
 
+- **Raid started by hand now gets Auto (15.11, players)** - a raid started by hand from the lobby right after a Dimension was taken for the Dimension: skills were pressed and Auto never. The bot now treats a fight after the lobby as the current goal.
 - **New raid: Tengu Raid (14.11, players)** - pick **Tengu** in the raid list; the bot finds it by name in Create and in Group Finder.
 - **Extreme Dimension no longer cancelled (14.11, players)** - a PLAY-like picture seen right after Start cancelled the run, so only the skills were pressed. Extreme now always waits and plays the run.
 - **Infinity: Reset to Assist 1 (14.11, players)** - new optional switch on the Infinity page: once at the start of each run the bot presses Esc-R-Enter, so Assist 1 comes out (one character can be both main and assist). Off by default.
