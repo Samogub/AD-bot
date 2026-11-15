@@ -321,6 +321,8 @@ cfg := Map(
     "dimWait",    IniRead(INI, "raid", "dimWait", "2000"),       ; Dimension: ms to wait after the first enemies are seen, before the run (0 = start at once)
     "dimShift",   IniRead(INI, "raid", "dimShift", "0"),        ; Dimension: start delay, ms - wait this long after the enemies show up
     "giantDetect", IniRead(INI, "raid", "giantDetect", "1"),     ; 14.11: Giant looks for the giants on screen after RETRY (1) or waits dimReplayWait s (0)
+    "skillBuf",   IniRead(INI, "raid", "skillBuf", "0"),        ; 15.11: helper for playing by hand - a held skill key is tapped until it fires
+    "skillBufKeys", IniRead(INI, "raid", "skillBufKeys", "1 2 3 4 5 e r z x"),   ; Helper page: the skills the buffer works for
     "infAssist1", IniRead(INI, "raid", "infAssist1", "0"),       ; 14.11 (player): Infinity - one Esc-R-Enter at the start of a run, so Assist 1 comes out
     "dimFight",   IniRead(INI, "raid", "dimFight", "1"),         ; Dimension: normal fight after the run if enemies are left
     "dimMethod",  IniRead(INI, "raid", "dimMethod", "1"),        ; Dimension route: 1 = dimension\giant\log.txt, 2 = built-in route
@@ -380,6 +382,82 @@ F1:: Start()
 F2:: Stop()
 F3:: RestartBot()
 #HotIf
+
+; 15.11 Skill buffer: a helper for playing by hand (Settings). Hold one or more skill keys and each is tapped every
+; ~120 ms until you let go, so a skill fires the moment its cooldown ends. Only while the bot is not farming and Roblox
+; is the active window. Scan codes, so the keyboard layout does not matter.
+#HotIf cfg["skillBuf"] = "1" && !running && WinActive(GAME)
+~*sc002::
+~*sc003::
+~*sc004::
+~*sc005::
+~*sc006::
+~*sc012::
+~*sc013::
+~*sc02C::
+~*sc02D:: SkillBufKey(SubStr(ThisHotkey, 3), true)
+#HotIf
+; the key going up is always seen (also after Roblox lost focus), so no key stays "held"
+~*sc002 up::
+~*sc003 up::
+~*sc004 up::
+~*sc005 up::
+~*sc006 up::
+~*sc012 up::
+~*sc013 up::
+~*sc02C up::
+~*sc02D up:: SkillBufKey(SubStr(ThisHotkey, 3, 5), false)
+
+; 15.11: which skill keys the player holds - kept here from the hotkeys, not from GetKeyState("P"): the bot's own
+; up/down taps made GetKeyState say "let go" (log 11:22: 1 held 14 s, only 7 taps). The bot's own keys never trigger these hotkeys.
+SKILLBUF_SC := Map("sc002", "1", "sc003", "2", "sc004", "3", "sc005", "4", "sc006", "5", "sc012", "e", "sc013", "r", "sc02C", "z", "sc02D", "x")
+skillBufHeld := Map()                                       ; sc -> tick it went down
+
+SkillBufKey(sc, isDown) {
+    if isDown {
+        if skillBufHeld.Has(sc)                             ; Windows key repeat
+            return
+        if !InStr(" " cfg["skillBufKeys"] " ", " " SKILLBUF_SC[sc] " ")   ; switched off on the Helper page
+            return
+        skillBufHeld[sc] := A_TickCount
+        SetTimer(SkillBufTick, 70)
+    } else if skillBufHeld.Has(sc) {
+        Log("skill buffer: " SKILLBUF_SC[sc] " held " Round((A_TickCount - skillBufHeld[sc]) / 1000, 1) " s, " SkillBufTaps(sc) " taps")
+        skillBufHeld.Delete(sc)
+    }
+}
+
+SkillBufTaps(sc, add := 0) {
+    static n := Map()
+    if add
+        return n[sc] := n.Get(sc, 0) + 1
+    v := n.Get(sc, 0), n[sc] := 0
+    return v
+}
+
+; One held key per tick, in turn: up 50 ms, then down (the game takes a skill on the key going down and reads keys once a
+; frame; with all keys going down at once it took only the first). SendEvent: SendInput takes the keyboard hook off for a moment.
+SkillBufTick() {
+    static turn := 0
+    if !skillBufHeld.Count || cfg["skillBuf"] != "1" || running || !WinActive(GAME) {
+        SetTimer(SkillBufTick, 0)
+        if skillBufHeld.Count && (running || cfg["skillBuf"] != "1")
+            skillBufHeld.Clear()
+        return
+    }
+    held := []
+    for sc in skillBufHeld
+        held.Push(sc)
+    turn := Mod(turn, held.Length) + 1
+    sc := held[turn]
+    SetKeyDelay(-1, -1)
+    SendEvent "{" sc " up}"
+    Sleep 50
+    if skillBufHeld.Has(sc) {                               ; let go during the tap: leave it up
+        SendEvent "{" sc " down}"
+        SkillBufTaps(sc, 1)
+    }
+}
 
 SkillOn(key) => true                       ; v0.3: усі скіли завжди активні (skillsOff ігнорується)
 

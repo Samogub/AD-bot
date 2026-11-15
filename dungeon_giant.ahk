@@ -5,12 +5,12 @@
 ; and a picture img\dim_char.png (square, e.g. 128x128; a "?" is shown while the file is missing)
 DIM_CHAR := {
     name: "Speed",
-    text: "The main character in loadout 2.",
-    more: "Sub stat: Cooldown Reduction +36.10%. The run needs this much (or a bit more) - with less, the skills come back too late and the recorded presses miss.",
+    text: "Recommended character to use, from ✧SAMOGUB✧.",
+    more: "No Speed? Onihime is a good choice too.",
     icon: "dim_char.png",
     ; the fruit used with the run (picture img\dim_fruit.png)
     fruitName: "Fruit (Lv. 30)",
-    fruitText: "The author uses this fruit. Sub stat: Fruit Cooldown Reduction +22.40% - the run needs at least this much.",
+    fruitText: "Recommended fruit to use, from ✧SAMOGUB✧.",
     fruitIcon: "dim_fruit.png"
 }
 DUNGEON_ROUTE := [

@@ -382,7 +382,7 @@ PgDx() => animVal.Has("pg") ? AnimCur(animVal["pg"]) : 0
 ; sidebar y of the active page (Setup sits at the bottom), -1 = none
 NavY(page) {
     i := 0
-    for nm in ["home", "modes", "connect", "stats", "settings"] {
+    for nm in ["home", "modes", "connect", "stats", "helper", "settings"] {
         if nm = page
             return 68 + 42 * i
         i++
@@ -593,7 +593,7 @@ IsHot(id) => hoverId = id
 ; HUD 2.0 page names: home modes connect stats settings setup. Old names stay as aliases:
 ; m_raid m_speed m_inf m_dim m_xdim -> modes + tab, skills -> modes + tab raid, look -> settings.
 PageNorm(name, &tab) {
-    if !InStr(" home modes connect stats settings setup m_raid m_speed m_inf m_dim m_xdim skills look ", " " name " ")
+    if !InStr(" home modes connect stats helper settings setup m_raid m_speed m_inf m_dim m_xdim skills look ", " " name " ")
         name := "home"
     if SubStr(name, 1, 2) = "m_" {
         tab := SubStr(name, 3)
@@ -1170,6 +1170,7 @@ UiRender(force := false) {
         case "modes":    PageModesTab()
         case "connect":  PageConnect()
         case "stats":    PageStats()
+        case "helper":   PageHelper()
         case "settings": PageSettings()
         case "setup":    PageSetup()
         default:         PageHome()
@@ -1261,7 +1262,7 @@ UiShots() {
     uiStatus := "Waiting for the hourly raid at 12:40, then Speed Raid"
     sessMs := 102 * 60000
     UiShotLog("ui: shots start, " UI_K " scale, " PW "x" PH " -> " dir)
-    pages := [["home", ""], ["connect", ""], ["stats", ""], ["settings", ""],
+    pages := [["home", ""], ["connect", ""], ["stats", ""], ["helper", ""], ["settings", ""],
               ["modes", "general"], ["modes", "raid"], ["modes", "speed"], ["modes", "inf"], ["modes", "dim"], ["modes", "xdim"]]
     for p in pages {
         curPage := p[1], curTab := p[2], uiShotFile := dir (p[2] != "" ? "modes_" p[2] : p[1]) ".png"
@@ -2070,6 +2071,20 @@ PageSettings() {
     TxP("Custom colours: add  bg= card= acc= acc2= hi=  (6-digit hex) under [theme] in raid.ini. Clicking a preset clears them.", "ui", 11, C.dim, CX, CY + 394, CWD, 28)
 }
 
+; 15.11 Helper: tools for playing by hand (the bot is not farming)
+PageHelper() {
+    cw := (CWD - 24) // 2, lx := CX, y0 := CY + 22
+    Tx("PLAY HELPER", "ui", 11, 1, C.dim, lx, y0 - 22, CWD, 18)
+    SRow(lx, y0, CWD, "Skill buffer", "Hold skill keys while you play: each one fires the moment its cooldown ends", 60)
+    Sw2(lx, y0, CWD, cfg["skillBuf"] = "1", "sw_skillBuf", FlipKey.Bind("skillBuf"))
+    TxP("How it works: keep a skill key held (several at once is fine). The bot taps it about every 120 ms until you let go, so you do not have to wait for the cooldown and press again. "
+        . "Works while the bot is stopped (F2) and Roblox is the active window; the bot window can be minimised. Click a key to turn it off or on:", "ui", 11, C.dim, lx, y0 + RH2 + 10, CWD, 48)
+    nk := SKILL_KEYS.Length
+    cwc := (CWD - (nk - 1) * 8) // nk
+    for i, k in SKILL_KEYS                               ; lit = the buffer works for this skill; greyed while the buffer is off
+        Chip(CX + (i - 1) * (cwc + 8), y0 + RH2 + 66, cwc, 32, StrUpper(k), InStr(" " cfg["skillBufKeys"] " ", " " k " "), "sb_" k, ToggleList.Bind("skillBufKeys", k), cfg["skillBuf"] != "1")
+}
+
 ; Compact look segment: switch only when the other one is clicked
 SetCLook(i, *) {
     if (i = 2) != (cTheme = "light")
@@ -2144,7 +2159,7 @@ DrawBackdrop2() {
     DllCall("gdiplus\GdipScaleWorldTransform", "ptr", gr, "float", UI_K, "float", UI_K, "int", 0)
 }
 
-PageTitle2() => Map("home", "Home", "modes", "Modes", "connect", "Connect", "stats", "Stats", "settings", "Settings", "setup", "Setup").Get(curPage, "Home")
+PageTitle2() => Map("home", "Home", "modes", "Modes", "connect", "Connect", "stats", "Stats", "helper", "Helper", "settings", "Settings", "setup", "Setup").Get(curPage, "Home")
 
 ; sidebar x 0..190: logo, five pages, then Setup and Sound at the bottom. Active item: translucent plate + a strip of C.lin on the left.
 DrawSidebar2() {
@@ -2161,8 +2176,14 @@ DrawSidebar2() {
         FillRR(12, ay + 7, 4, 26, 2, C.lin)
     }
     y := 68
-    for it in [["home", "Home", 0xE80F], ["modes", "Modes", 0xE8FD], ["connect", "Connect", 0xE71B], ["stats", "Stats", 0xE9D2], ["settings", "Settings", 0xE713]] {
+    for it in [["home", "Home", 0xE80F], ["modes", "Modes", 0xE8FD], ["connect", "Connect", 0xE71B], ["stats", "Stats", 0xE9D2], ["helper", "Helper", 0xE945], ["settings", "Settings", 0xE713]] {
         NavItem2(it[1], it[2], it[3], y, curPage = it[1], SetPage.Bind(it[1]))
+        if it[1] = "helper" {                            ; 15.11: new tab - a small neon "NEW" up and to the right of the name
+            Glow(130, y + 13, 24, 11, C.hi, 70)
+            FillRR(114, y + 5, 32, 15, 7, C.hi, 40)
+            StrokeRR(114, y + 5, 32, 15, 7, C.hi, 230, 1)
+            Tx("NEW", "ui", 8, 1, C.hi, 115, y + 6, 32, 15, 1)   ; +1 px: the small caps sit high and left in the box
+        }
         y += 42
     }
     if UpdateAvail() {                                   ; 14.11: a newer build is on GitHub (update.ahk)
