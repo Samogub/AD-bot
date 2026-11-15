@@ -91,6 +91,7 @@
 
 ## 🩹 Recent fixes
 
+- **Giant Dimension slot 1 has a run again (15.11)** - a new download comes with the author's Giant run in slot 1 (`dimension\giant\log.txt`, keyboard only). UPDATE puts it only into an empty slot 1 and never over your own recording.
 - **Raid started by hand now gets Auto (15.11, players)** - a raid started by hand from the lobby right after a Dimension was taken for the Dimension: skills were pressed and Auto never. The bot now treats a fight after the lobby as the current goal.
 - **New raid: Tengu Raid (14.11, players)** - pick **Tengu** in the raid list; the bot finds it by name in Create and in Group Finder.
 - **Extreme Dimension no longer cancelled (14.11, players)** - a PLAY-like picture seen right after Start cancelled the run, so only the skills were pressed. Extreme now always waits and plays the run.
