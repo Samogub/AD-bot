@@ -1357,10 +1357,11 @@ SpeedWait() {
     return true
 }
 
+enteredAt := 0, lobbyAt := 0   ; lobbyAt: the lobby was seen loaded (WaitLoaded); enteredAt: the bot entered a mode itself
 enteredFresh := false      ; true once THIS session entered a mode itself (lastEntered from raid.ini may be old: the bot was started inside something else)
 SetEntered(what) {
-    global lastEntered, enteredFresh
-    lastEntered := what, enteredFresh := true
+    global lastEntered, enteredFresh, enteredAt
+    lastEntered := what, enteredFresh := true, enteredAt := A_TickCount
     IniWrite what, INI, "state", "lastEntered"
 }
 
@@ -1393,6 +1394,12 @@ Step() {
     h := ENEMIES_HOME
     inFight := FindImg("enemies_left.png", &x, &y, h[1] - 12, h[2] - 12, h[1] + 66, h[2] + 38, "*80 *TransFF00FF")
         || FindImg("enemies_left.png", &x, &y, b[1], b[2], b[3], b[4], "*80 *TransFF00FF")
+    ; 15.11: the player started the raid himself from the lobby: lastEntered was still the Dimension, the bot pressed skills and never Auto
+    if inFight && lobbyAt > enteredAt && lastEntered != goal && (goal = "raid" || goal = "speed" || goal = "infinity") {
+        Log("fight right after the lobby, started by hand - treating it as " goal)
+        SetEntered(goal)
+        fightSince := 0
+    }
     ; виходимо з Infinity на рейд, а ми вже в лобі (видно PLAY): це не бій. 29.10 22:00 і 23:00 бот після LEAVE
     ; у лобі 12 min тиснув Esc-R-Enter - на меню Esc хибно "бачив" ENEMIES LEFT, "липкий" бій не закінчувався
     ; 4.11: also after a dungeon - F3 in the lobby with lastEntered=dungeon "saw" ENEMIES LEFT and waited for the giants there
@@ -2367,11 +2374,13 @@ ClickXY(cx, cy) {
 ; Після телепорту чекаємо не фіксований час, а поки лобі справді завантажиться: з'явиться кнопка PLAY
 ; (перші 3 с не дивимось - старе лобі ще може бути на екрані). Найдовше 60 с.
 WaitLoaded() {
+    global lobbyAt
     t0 := A_TickCount
     Sleep 3000
     while A_TickCount - t0 < 60000 && running {
         if SeePlay(&x, &y) {
             Log("  lobby loaded in " Round((A_TickCount - t0) / 1000, 1) " s")
+            lobbyAt := A_TickCount
             Sleep 500                            ; дати інтерфейсу домалюватись
             return
         }
