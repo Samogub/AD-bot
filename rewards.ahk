@@ -79,6 +79,8 @@ RewardCards(kind) {
     }
     Log(title ": gems " (gems ? gems : "?") ", tokens " (tokens ? tokens : "?")
         . (gems && tokens ? "" : " (a card or number was not found - see the shot)"))
+    if kind = "raid"
+        WebhookRaidWin(title, gems, tokens)              ; the rewards are still on the screen
     return true
 }
 

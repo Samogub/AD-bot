@@ -2545,7 +2545,7 @@ UiShotDemo() {
 ; Connect page (HUD 2.0): Private server and Discord, each card has status, a masked value, and buttons.
 ; Edit opens the small editor window (EditServerLink / EditWebhook); the report interval is changed right here
 PageConnect() {
-    gap := 14, pw := (CWD - gap) // 2, ch := 324
+    gap := 14, pw := (CWD - gap) // 2, ch := 376
     link := uiShotNoLinks ? "" : FrzGet("link", PrivateLink)
     hook := uiShotNoLinks ? "" : FrzGet("hook", WebhookUrl)
     ; --- Private server ---
@@ -2557,7 +2557,7 @@ PageConnect() {
     ConnStatus(x + 20, y + 98, iw, link = "" ? "Empty - public server after a restart" : linkOk ? "Link saved" : "Not a Roblox link", linkOk ? "3DD68C" : link = "" ? "F5B942" : "E5484D")
     ConnField(x + 20, y + 128, iw, link = "" ? "https://www.roblox.com/share?code=..." : LinkShort(link), link != "")
     TxP("Edit pastes or changes the link. Join opens it in Roblox.", "ui", 11, C.dim, x + 20, y + 176, iw, 20)
-    ConnNoteDraw("srv", x + 20, y + 238, iw)
+    ConnNoteDraw("srv", x + 20, y + 290, iw)
     bw := (iw - 10) // 2
     Btn(x + 20, y + ch - 64, bw, 44, "Edit", "conn_srv_edit", EditServerLink)
     Btn(x + 20 + bw + 10, y + ch - 64, bw, 44, "Join", "conn_srv_join", ConnJoin, true, , link = "")
@@ -2572,7 +2572,9 @@ PageConnect() {
     mn := Min(240, Max(0, FrzGet("hookmin", HookMin)))
     SRow(x + 20, y + 176, iw, "Report every", "0 = only problems", 140)
     Stp2(x + 20, y + 176, iw, mn " min", StepHookMin.Bind(-5), StepHookMin.Bind(5), "hookMin")
-    ConnNoteDraw("hook", x + 20, y + 238, iw)
+    SRow(x + 20, y + 228, iw, "Raid wins", "Rewards card + screenshot", 46)
+    Sw2(x + 20, y + 228, iw, cfg["hookWins"] = "1", "sw_hookWins", FlipKey.Bind("hookWins"), !hookOk)
+    ConnNoteDraw("hook", x + 20, y + 290, iw)
     Btn(x + 20, y + ch - 64, bw, 44, "Edit", "conn_hook_edit", EditWebhook)
     Btn(x + 20 + bw + 10, y + ch - 64, bw, 44, "Send test", "conn_hook_test", ConnTest, true, , !hookOk)
     TxP("Both are optional. The bot works without them.", "ui", 12, C.dim, CX + 4, CY + ch + 12, CWD - 8, 20)
@@ -2662,8 +2664,12 @@ ConnTest(*) {
         return
     }
     Log("Discord test: sending")
-    try WebhookPost("**AD Bot** test - if you see this, it works. " WebhookStatus(), Screenshot("discord"))
-    catch as e {
+    try {
+        if cfg["hookWins"] = "1"                         ; Raid wins on: only a sample of the win card (one post, one screenshot)
+            WebhookRaidWin("Test - " RaidTitle(), 0, 0, true)
+        else
+            WebhookPost("**AD Bot** test - if you see this, it works. " WebhookStatus(), Screenshot("discord"))
+    } catch as e {
         Log("Discord test failed: " e.Message)
         ConnSay("hook", "Test failed - see the log.")
         return

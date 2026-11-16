@@ -321,6 +321,7 @@ cfg := Map(
     "dimWait",    IniRead(INI, "raid", "dimWait", "2000"),       ; Dimension: ms to wait after the first enemies are seen, before the run (0 = start at once)
     "dimShift",   IniRead(INI, "raid", "dimShift", "0"),        ; Dimension: start delay, ms - wait this long after the enemies show up
     "giantDetect", IniRead(INI, "raid", "giantDetect", "1"),     ; 14.11: Giant looks for the giants on screen after RETRY (1) or waits dimReplayWait s (0)
+    "hookWins",   IniRead(INI, "raid", "hookWins", "0"),        ; 16.11 (players): Discord post with a screenshot after every raid win
     "skillBuf",   IniRead(INI, "raid", "skillBuf", "0"),        ; 15.11: helper for playing by hand - a held skill key is tapped until it fires
     "skillBufKeys", IniRead(INI, "raid", "skillBufKeys", "1 2 3 4 5 e r z x"),   ; Helper page: the skills the buffer works for
     "infAssist1", IniRead(INI, "raid", "infAssist1", "0"),       ; 14.11 (player): Infinity - one Esc-R-Enter at the start of a run, so Assist 1 comes out

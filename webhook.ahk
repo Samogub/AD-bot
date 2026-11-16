@@ -8,15 +8,18 @@
 WebhookUrl() => Trim(IniRead(INI, "raid", "webhook", ""))
 WebhookOk(url) => RegExMatch(url, "i)^https://(\w+\.)?discord(app)?\.com/api/webhooks/\d+/[\w-]+$")
 
-WebhookPost(text, file := "") {
+WebhookPost(text, file := "") => WebhookSend('{"username":"AD Bot","content":"' JsonEsc(SubStr(text, 1, 1900)) '"}', file)
+
+; json = the whole payload; file goes out as "shot.jpg" (an embed shows it with attachment://shot.jpg)
+WebhookSend(json, file := "") {
     url := WebhookUrl()
     if !WebhookOk(url)
         return false
     jf := A_Temp "\adbot_hook_" A_TickCount "_" Random(1000, 9999) ".json"
-    try FileAppend '{"username":"AD Bot","content":"' JsonEsc(SubStr(text, 1, 1900)) '"}', jf, "UTF-8-RAW"
+    try FileAppend json, jf, "UTF-8-RAW"
     catch
         return false
-    att := file != "" && FileExist(file) ? ' -F "file1=@' file '"' : ""
+    att := file != "" && FileExist(file) ? ' -F "file1=@' file ';filename=shot.jpg"' : ""
     ; payload_json=<file: curl reads the JSON from the file, so no quoting trouble on the command line
     try Run(A_ComSpec ' /c "curl.exe -s -m 60 -F "payload_json=<' jf '"' att ' "' url '" & del "' jf '""', , "Hide")
     catch
@@ -52,6 +55,25 @@ WebhookTick() {
     WebhookPost(WebhookStatus(), Screenshot("discord"))
 }
 SetTimer(WebhookTick, 60000)
+
+; 16.11 (players asked, raids only): a card with the rewards and the results screenshot after every raid win
+WebhookRaidWin(title, gems, tokens, force := false) {   ; force: Send test shows the card even with the switch off
+    if !force && cfg["hookWins"] != "1" || !WebhookOk(WebhookUrl())
+        return
+    shot := Screenshot("raid_win")
+    ; look of the Update screen: small "AD BOT" above, big caps title, numbers in mono, the theme's accent bar
+    col := 0xB0449A
+    try col := Integer("0x" C.acc)
+    f := (n, v) => '{"name":"' n '","value":"``' JsonEsc(v) '``","inline":true}'
+    fight := fightSince ? (s := (A_TickCount - fightSince) // 1000) // 60 ":" Format("{:02}", Mod(s, 60)) : "?"
+    json := '{"username":"AD Bot","embeds":[{"author":{"name":"AD BOT"},"title":"RAID WON","color":' col
+        . ',"description":"**' JsonEsc(title) '**","fields":['
+        . f("GEMS", gems ? gems : "?") "," f("TOKENS", tokens ? tokens : "?") "," f("FIGHT", fight) ","
+        . '{"name":"THIS SESSION","value":"``' JsonEsc("raids " sess["raids"] "  ·  gems " SessSum(GEM_KEYS) "  ·  tokens " SessSum(TOKEN_KEYS)) '``","inline":false}]'
+        . (shot != "" ? ',"image":{"url":"attachment://shot.jpg"}' : "")
+        . ',"footer":{"text":"AD Bot v' APP_VERSION '"},"timestamp":"' FormatTime(A_NowUTC, "yyyy-MM-dd'T'HH:mm:ss'Z'") '"}]}'
+    WebhookSend(json, shot)
+}
 
 ; called from Log(): lines worth a ping on the phone
 WebhookLog(text) {
