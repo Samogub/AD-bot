@@ -91,6 +91,7 @@
 
 ## 🩹 Recent fixes
 
+- **Raid win card in Discord (16.11, players)** - turn on **Raid wins** on the Connect page: after every raid win the webhook posts a card with gems, tokens, fight time, session totals and the rewards screenshot. Off by default; with it on, **Send test** shows a sample card.
 - **New Helper tab: Skill buffer (15.11)** - for playing by hand: turn on **Skill buffer** on the new **Helper** page, stop the bot (F2) and hold skill keys in Roblox. Each held skill is pressed again and again until you let go, so it fires the moment its cooldown ends. Several keys at once work; click a key on the page to leave it out.
 - **Giant Dimension slot 1 has a run again (15.11)** - a new download comes with the author's Giant run in slot 1 (`dimension\giant\log.txt`, keyboard only). UPDATE puts it only into an empty slot 1 and never over your own recording.
 - **Raid started by hand now gets Auto (15.11, players)** - a raid started by hand from the lobby right after a Dimension was taken for the Dimension: skills were pressed and Auto never. The bot now treats a fight after the lobby as the current goal.
