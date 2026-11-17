@@ -36,7 +36,7 @@ JsonEsc(s) {
 }
 
 WebhookStatus() => "**AD Bot** " FormatTime(, "HH:mm") " - " lastStatus
-    . "`nThis run: raids " sess["raids"] ", Speed " sess["speedRuns"] ", Infinity " sess["infRuns"] ", Dimensions " sess["dimRuns"]
+    . "`nThis run: raids " sess["raids"] ", Speed " sess["speedRuns"] ", Infinity " sess["infRuns"] ", Dimensions " sess["dimRuns"] ", Extreme " sess["xdimRuns"]
     . ", gems " SessSum(GEM_KEYS) ", tokens " SessSum(TOKEN_KEYS) ", restarts " sess["restarts"]
 
 ; every minute while the bot runs: a status post with a game screenshot every webhookMin minutes
@@ -69,7 +69,29 @@ WebhookRaidWin(title, gems, tokens, force := false) {   ; force: Send test shows
     json := '{"username":"AD Bot","embeds":[{"author":{"name":"AD BOT"},"title":"RAID WON","color":' col
         . ',"description":"**' JsonEsc(title) '**","fields":['
         . f("GEMS", gems ? gems : "?") "," f("TOKENS", tokens ? tokens : "?") "," f("FIGHT", fight) ","
-        . '{"name":"THIS SESSION","value":"``' JsonEsc("raids " sess["raids"] "  ·  gems " SessSum(GEM_KEYS) "  ·  tokens " SessSum(TOKEN_KEYS)) '``","inline":false}]'
+        . HookSessField() "]"
+        . (shot != "" ? ',"image":{"url":"attachment://shot.jpg"}' : "")
+        . ',"footer":{"text":"AD Bot v' APP_VERSION '"},"timestamp":"' FormatTime(A_NowUTC, "yyyy-MM-dd'T'HH:mm:ss'Z'") '"}]}'
+    WebhookSend(json, shot)
+}
+
+HookSessField() => '{"name":"THIS SESSION","value":"``' JsonEsc("raids " sess["raids"] "  ·  extreme " sess["xdimRuns"] "  ·  crystals " sess["xdimCrys"] "  ·  gems " SessSum(GEM_KEYS) "  ·  tokens " SessSum(TOKEN_KEYS)) '``","inline":false}'
+
+; 17.11 (user): the same card after an Extreme win - map, difficulty, crystals (gems if any); the shot was taken when the results showed
+WebhookXdimWin(shot) {
+    gems := rwGemsX
+    if cfg["hookWins"] != "1" || !WebhookOk(WebhookUrl())
+        return
+    col := 0xB0449A
+    try col := Integer("0x" C.acc)
+    f := (n, v) => '{"name":"' n '","value":"``' JsonEsc(v) '``","inline":true}'
+    diff := ["Easy", "Normal", "Nightmare", "Extreme"][Min(4, Max(1, IsInteger(cfg["xdimPick"]) ? Integer(cfg["xdimPick"]) : 1))]
+    mp := ""
+    try mp := XdimName(xdimMapNow != "" ? xdimMapNow : XdimMap())
+    json := '{"username":"AD Bot","embeds":[{"author":{"name":"AD BOT"},"title":"EXTREME WON","color":' col
+        . ',"description":"**' JsonEsc("Extreme Dimension" (mp != "" ? ": " mp : "")) '**","fields":['
+        . f("CRYSTALS", rwCrys ? rwCrys : "?") "," (gems ? f("GEMS", gems) "," : "") f("DIFFICULTY", diff) "," f("EXTREME RUNS", sess["xdimRuns"]) ","
+        . HookSessField() "]"
         . (shot != "" ? ',"image":{"url":"attachment://shot.jpg"}' : "")
         . ',"footer":{"text":"AD Bot v' APP_VERSION '"},"timestamp":"' FormatTime(A_NowUTC, "yyyy-MM-dd'T'HH:mm:ss'Z'") '"}]}'
     WebhookSend(json, shot)

@@ -214,6 +214,9 @@ searchTurns := 0         ; скільки поворотів поспіль бе
 xdimMapNow := ""          ; Extreme Dimension: the map of the run being played (set at Start, kept for RETRY replays)
 xdimStartAt := 0         ; Extreme Dimension: when Start was pressed (or the run was retried): the run starts xdimWait s later
 routeDone := false       ; dungeon: the recorded route of this run is already played
+dimMid := false          ; 17.11: the bot was started inside a Dimension run (no route, no skills until its results / the lobby)
+dimArm := 0              ; 17.11: started while a run loads (no ENEMIES LEFT yet): tick of Start - the route plays the moment ENEMIES LEFT shows
+routeNow := false        ; RunRoute: play at once (ENEMIES LEFT just seen by the caller), no waiting
 dimRunAt := 0            ; when the recorded run of this dungeon started (0 - none waiting for RETRY)
 dimRetryAt := 0          ; when RETRY was pressed: the next ~15 s are the game reloading the run, not the lobby
 retryPending := false    ; RETRY clicked, the results screen not seen gone yet (DimRetry then arms the route)
@@ -231,9 +234,9 @@ lastNo5Reset := 0        ; коли востаннє ресетили персо
 no5Pending   := false    ; портрет змінився після респавну, вже обробленого по відліку: скіли нового персонажа ще треба перевірити
 lastLoadoutWarn := 0     ; коли востаннє писали УВАГА про рейд без loadout 1
 pickFails := 0, pickFailHour := "", pickMissAt := 0   ; PickRaidByName: misses of this hour's raid (reset in Start)
-GEM_KEYS := ["raidGems", "speedGems", "dimGems"], TOKEN_KEYS := ["raidTokens", "speedTokens"]   ; Stats page: all modes together
+GEM_KEYS := ["raidGems", "speedGems", "dimGems", "xdimGems"], TOKEN_KEYS := ["raidTokens", "speedTokens"]   ; Stats page: all modes together
 raidCountAt := -99999999   ; when a raid was last counted (Start press or results screen)
-sess := Map("raids", 0, "raidGems", 0, "raidTokens", 0, "speedRuns", 0, "speedGems", 0, "speedTokens", 0, "infRuns", 0, "dimRuns", 0, "dimGems", 0, "restarts", 0)   ; підсумок поточного запуску бота
+sess := Map("raids", 0, "raidGems", 0, "raidTokens", 0, "speedRuns", 0, "speedGems", 0, "speedTokens", 0, "infRuns", 0, "dimRuns", 0, "dimGems", 0, "xdimRuns", 0, "xdimGems", 0, "xdimCrys", 0, "restarts", 0)   ; підсумок поточного запуску бота
 FIGHT_STICKY := 15000    ; скільки ms після цього ще битися, якщо екран не розпізнано
 lastReset  := 0          ; коли востаннє робили Esc-R-Enter
 unknownSince := 0        ; відколи екран поспіль не розпізнається (0 = розпізнається)
@@ -322,6 +325,7 @@ cfg := Map(
     "dimShift",   IniRead(INI, "raid", "dimShift", "0"),        ; Dimension: start delay, ms - wait this long after the enemies show up
     "giantDetect", IniRead(INI, "raid", "giantDetect", "1"),     ; 14.11: Giant looks for the giants on screen after RETRY (1) or waits dimReplayWait s (0)
     "hookWins",   IniRead(INI, "raid", "hookWins", "0"),        ; 16.11 (players): Discord post with a screenshot after every raid win
+    "quests",     IniRead(INI, "raid", "quests", "0"),          ; 17.11: collect finished Daily / Weekly quest rewards in the lobby
     "skillBuf",   IniRead(INI, "raid", "skillBuf", "0"),        ; 15.11: helper for playing by hand - a held skill key is tapped until it fires
     "skillBufKeys", IniRead(INI, "raid", "skillBufKeys", "1 2 3 4 5 e r z x"),   ; Helper page: the skills the buffer works for
     "infAssist1", IniRead(INI, "raid", "infAssist1", "0"),       ; 14.11 (player): Infinity - one Esc-R-Enter at the start of a run, so Assist 1 comes out
@@ -330,6 +334,8 @@ cfg := Map(
     "xdim",       IniRead(INI, "raid", "xdim", "0"),             ; Extreme Dimension on/off (0.3.5: only the switch and the 1-4 picker, no run yet)
     "dimName",    IniRead(INI, "raid", "dimName", "giant"),      ; Dimension: giant / halloween / death / demon / ... (DIMS; each keeps its own recordings)
     "xdimWait",   IniRead(INI, "raid", "xdimWait", "15"),        ; Extreme Dimension: seconds to wait after Start before the run (the game loads the map)
+    "xdimHudWait", IniRead(INI, "raid", "xdimHudWait", "2000"),  ; 17.11: Extreme - ms after ENEMIES LEFT shows before the run starts
+    "xdimL3",     IniRead(INI, "raid", "xdimL3", "0"),           ; 17.11: Extreme with Loadout 3 (only while Speed Raid is off - Speed Raid uses it)
     "xdimPick",   IniRead(INI, "raid", "xdimPick", "1"),         ; Extreme Dimension: which of the 4 buttons
     "dimReplayWait", IniRead(INI, "raid", "dimReplayWait", "15"), ; 14.11 (players): Halloween / Death / other recorded Dimensions - seconds after REPLAY before the run (Extreme: xdimWait)
     "dungeon",    IniRead(INI, "raid", "dungeon", "1"),         ; Giant Dimension (Nightmare, Hardcore, Friends Only) instead of Infinity; experimental
@@ -387,7 +393,7 @@ F3:: RestartBot()
 ; 15.11 Skill buffer: a helper for playing by hand (Settings). Hold one or more skill keys and each is tapped every
 ; ~120 ms until you let go, so a skill fires the moment its cooldown ends. Only while the bot is not farming and Roblox
 ; is the active window. Scan codes, so the keyboard layout does not matter.
-#HotIf cfg["skillBuf"] = "1" && !running && WinActive(GAME)
+#HotIf cfg["skillBuf"] = "1" && !running && WinActive(GAME) && !WinExist("Recorder v2 ahk_class AutoHotkeyGUI")   ; 17.11: off while recording
 ~*sc002::
 ~*sc003::
 ~*sc004::
@@ -440,7 +446,7 @@ SkillBufTaps(sc, add := 0) {
 ; frame; with all keys going down at once it took only the first). SendEvent: SendInput takes the keyboard hook off for a moment.
 SkillBufTick() {
     static turn := 0
-    if !skillBufHeld.Count || cfg["skillBuf"] != "1" || running || !WinActive(GAME) {
+    if !skillBufHeld.Count || cfg["skillBuf"] != "1" || running || !WinActive(GAME) || WinExist("Recorder v2 ahk_class AutoHotkeyGUI") {
         SetTimer(SkillBufTick, 0)
         if skillBufHeld.Count && (running || cfg["skillBuf"] != "1")
             skillBufHeld.Clear()
@@ -475,13 +481,13 @@ BossFight() => lastEntered = "raid" || lastEntered = "speed"
 IntOr0(v) => IsInteger(Trim(v)) ? Integer(Trim(v)) : 0
 
 Stat(name, n := 1) {
-    m := name = "raids" ? "raid" : name = "dimRuns" ? "dungeon" : name = "speedRuns" ? "speed" : ""
+    m := name = "raids" ? "raid" : name = "dimRuns" || name = "xdimRuns" ? "dungeon" : name = "speedRuns" ? "speed" : ""
     if m != "" && safeStrikes.Has(m)                        ; Safe mode: a finished run = the mode works again, its problems are forgotten
         safeStrikes.Delete(m)
     today := FormatTime(, "yyyyMMdd")
     if IniRead(INI, "stats", "day", "") != today {
         IniWrite today, INI, "stats", "day"
-        for k in ["infRuns", "raids", "raidGems", "raidTokens", "restarts", "speedRuns", "speedGems", "speedTokens", "dimRuns", "dimGems"]
+        for k in ["infRuns", "raids", "raidGems", "raidTokens", "restarts", "speedRuns", "speedGems", "speedTokens", "dimRuns", "dimGems", "xdimRuns", "xdimGems", "xdimCrys"]
             IniWrite 0, INI, "stats", k
     }
     IniWrite IntOr0(IniRead(INI, "stats", name, "0")) + n, INI, "stats", name
@@ -965,6 +971,7 @@ Start() {
         . ", loadouts=" cfg["loadouts"] ", raid=" cfg["raid"] ", raidEvery=" RaidEvery() ", infinity=" cfg["infinity"] ", speed=" cfg["speed"]
         . ", soloRaid=" cfg["soloRaid"] ", resetNo5=" cfg["resetNo5"] ", infStop=" cfg["infStop"] (cfg["dungeon"] = "1" ? ", dimStopAt=" Format("{:02}:{:02}", StopSec() // 60, Mod(StopSec(), 60)) : "") ", bossAuto=" cfg["bossAuto"] ", infGameAuto=" cfg["infGameAuto"])
     StartupChecks()
+    DimMidCheck()
     PlaceId()                                             ; поки гра запущена - запам'ятовуємо, куди перезаходити
     OcrServer()                                         ; OCR-сервер вантажиться заздалегідь
     running := true
@@ -1450,6 +1457,7 @@ Step() {
     global fightSince, infDrop, portraitSig, walkAt, infLootDone, lastDmg, dmgChanged, searchTurns, raidShotDone, sameReads, learnLeft, comboSeen, lastCombo, lastComboCheck, camYaw, afterRespawn, wasDead, lastRespawnAt, farPress, lastSearch, lastAuto, autoOffAt
     global autoOffAt, charIdx, rewardRaw, rewardReads, rewardRepeat, rdChanges, rdResetNo5, rdResetCombo, lastNo5Reset, lastLoadoutWarn, no5Pending
     global dimHandled                        ; was local here: the reset at the route start never reached DimRetry (only the 1st run per Start was counted/read)
+    global dimMid, dimArm, routeNow
     RewardsPoll()                           ; Dimension gem number read in the background
     prevUnknown := unknownSince              ; скидається на кожному тіку, де екран розпізнано
     unknownSince := 0
@@ -1539,18 +1547,47 @@ Step() {
     if lastEntered = "dungeon" && dimRunAt && A_TickCount - dimRunAt > (DimKind() = "xdim" ? 600000 : 120000) {
         dimRunAt := 0
         Screenshot("dim_noretry")
-        RestartRoblox("Dimension: no RETRY 2 min after the run started", , 60000)
+        RestartRoblox(RunName() ": no RETRY " (DimKind() = "xdim" ? 10 : 2) " min after the run started", , 60000)
         return
     }
     ; results first: the dim ENEMIES LEFT HUD shows under them too, and the route must not start there
     ; 10.11 20:33: RETRY pressed, the game froze on results with only LEAVE (routeDone was cleared by then) - the screen was
     ; not recognised for 20 s: look at the results again (DimRetry restarts the game; 12.11: no LEAVE press, it never helped)
-    if lastEntered = "dungeon" && (routeDone || prevUnknown && A_TickCount - prevUnknown > 20000) && DimRetry()
+    if lastEntered = "dungeon" && (routeDone || dimMid || dimArm || prevUnknown && A_TickCount - prevUnknown > 20000) && DimRetry() {
+        dimMid := false, dimArm := 0, routeDone := true   ; results reached: RETRY starts the next run; routeDone keeps DimRetry looking until the results are gone (critic 17.11)
         return
+    }
     if (lastEntered = "infinity" || lastEntered = "dungeon") && LeaveInfinity()
         return
     ; dungeon: the first fight frame starts the recorded route (blocks until it is played); after it the normal fight
     ; goes on if anything is left. Every results screen re-arms it, so a retried run (by the bot or the game) walks again
+    ; 17.11 (players: "skills right after Start / after I pressed REPLAY"): started inside a run - the route cannot join it in the
+    ; middle and skills only stand still. Wait for the results (RETRY above); a run that never ends hits the 2 min restart (DimMidCheck).
+    ; 17.11 (players test a fresh recording: Save, REPLAY, F1 while the run loads): play the run the moment ENEMIES LEFT shows
+    if dimArm && lastEntered = "dungeon" {
+        h := ENEMIES_HOME
+        if SeePlay(&px, &py)
+            dimArm := 0
+        else if FindImg("enemies_left.png", &px, &py, h[1] - 12, h[2] - 12, h[1] + 66, h[2] + 38, "*80 *TransFF00FF") && !ResultsUp() {
+            dimArm := 0, routeNow := true, routeDone := true, dimRunAt := A_TickCount, dimHandled := false
+            Log("ENEMIES LEFT showed after Start - the recorded run starts now")
+            RunRoute(DimRoute())
+            return
+        } else if A_TickCount - dimArm > 90000 {
+            dimArm := 0, dimMid := true                   ; no run came: wait for results / the lobby as below
+        } else {
+            SetStatus("Dimension: waiting for ENEMIES LEFT - the recorded run starts with it")
+            return
+        }
+    }
+    if dimMid && lastEntered = "dungeon" {
+        if SeePlay(&px, &py)                              ; lobby after all: the normal way in
+            dimMid := false
+        else {
+            SetStatus("Dimension: started in the middle of a run - waiting for its results, then RETRY (press F1 in the lobby or while the run loads)")
+            return
+        }
+    }
     if (xdimStartAt || DimKind() != "xdim" && inFight) && lastEntered = "dungeon" && !routeDone {   ; Extreme / a replayed Halloween-Death run: the timer, not the HUD
         routeDone := true, dimRunAt := A_TickCount, dimHandled := false
         RunRoute(DimRoute())
@@ -2034,14 +2071,15 @@ Step() {
         return
     }
     if (goal = "infinity" || goal = "dungeon") && FindImg("dimension.png", &x, &y, 260, 880, 620, 990) {   ; меню режимів: у данжі (лише білі літери DIMENSION)
-        if MenuLoadoutWrong(2)
+        if MenuLoadoutWrong(DimLoadout(goal))
             return
         if goal = "dungeon" && DimKind() = "xdim" {
             EnterExtreme()
             return
         }
         SetStatus("entering Dimension")
-        ClickImg("dimension.png", x, y)
+        s := PngSize(IMGDIR "dimension.png")              ; 17.11: a chat message can cover the bottom of the card - click 100 px higher on it
+        ClickXY(x + s[1] // 2, y + s[2] // 2 - 100)
         ParkMouse()
         Sleep 1500
         return
@@ -2111,10 +2149,12 @@ Step() {
             Log("lobby after Infinity was cut off")
             Screenshot("inf_lobby")
         }
+        if goal != "raid" && goal != "speed" && cfg["quests"] = "1" && ClaimQuests()   ; not before a raid / Speed Raid: they wait for nobody
+            return
         if goal = "raid" || goal = "infinity" || goal = "dungeon" || goal = "speed" {   ; перед входом - потрібний loadout (Infinity / dungeon - 2)
             if cfg["loadouts"] != "1"
                 CheckLoadoutOnce()                                        ; перемикання вимкнене - лише читаємо, що стоїть
-            EnsureLoadout(goal = "raid" ? 1 : goal = "speed" ? 3 : 2)
+            EnsureLoadout(goal = "raid" ? 1 : goal = "speed" ? 3 : DimLoadout(goal))
             if !running
                 return
             ; рейд з чужим loadout - не частіше разу на годину
@@ -2174,7 +2214,7 @@ Step() {
                 return
             }
             unknownSince := A_TickCount
-            if RestartRoblox("teleport stuck after Infinity", , 60000)
+            if RestartRoblox("teleport stuck after " RunName(), , 60000)
                 watchStep := 0
             return
         }
@@ -2229,7 +2269,7 @@ LeaveInfinity() {
             resSeen := false                              ; no results screen: the next one is read again
             return false
         }
-        kind := RegExMatch(ocrTxt, "i)PITY|ACCESSORY") ? "Dimension" : (lastEntered = "dungeon" ? "Dimension" : "Infinity")
+        kind := RegExMatch(ocrTxt, "i)PITY|ACCESSORY") && lastEntered != "dungeon" ? "Dimension" : RunName()
         Log("  " kind " results found by OCR (LEAVE picture did not match)")
         Screenshot("leave_nomatch")
         x := 1260, y := 771
@@ -2243,7 +2283,7 @@ LeaveInfinity() {
     if A_TickCount - leaveAt > 4000 {
         if ++leaveN > 3 {
             leaveN := 0
-            RestartRoblox("LEAVE after Infinity does not work", , 60000)
+            RestartRoblox((lastEntered = "dungeon" ? "RETRY / LEAVE" : "LEAVE") " after " RunName() " does not work", , 60000)
             return true
         }
         leaveAt := A_TickCount
@@ -2256,10 +2296,10 @@ LeaveInfinity() {
             DimCardsStart()
         }
         if lastEntered = "dungeon" && Target() = "dungeon" {
-            SetStatus("Dimension results: pressing RETRY")
+            SetStatus(RunName() " results: pressing RETRY")
             routeDone := false, dimRetryAt := A_TickCount, xdimStartAt := GiantDetect() ? 0 : A_TickCount
             if first
-                Stat("dimRuns")
+                Stat(DimStat())
             ClickXY(x + 90 - 593, y + 24)
             ParkMouse()
             Sleep 800
@@ -2269,7 +2309,7 @@ LeaveInfinity() {
             resSeen := true
             ResultLineStart("infinity")                   ; Time / Wave line, read in the background before LEAVE
         }
-        SetStatus("Infinity results: pressing LEAVE")
+        SetStatus(RunName() " results: pressing LEAVE")
         ClickXY(x + 90, y + 24)
         ParkMouse()
         Sleep 1500
@@ -2421,6 +2461,83 @@ PlayDiamond() {
         y += 4
     }
     return n / tot >= 0.06
+}
+
+; 17.11 (user): Daily / Weekly quest rewards. The game puts a red "!" on QUEST when something can be taken, and on each Complete
+; button that gives a reward (a bright Complete also sits on unfinished quests, 0/1 - those are never pressed). Shots 17.11, 1920x1080.
+
+; the red "!" circle: its pink-red edge with the white bar under it. 17.11: the picture template missed it live (the badge pulses,
+; its size changes) - colours do not change. Complete buttons (B < 80) and the ruby icons (no white bar there) do not match.
+; Tested on the 17.11 shots: lobby and list found, the Weekly list without "!" and the open window over the lobby not.
+QuestBadge(x1, y1, x2, y2, &bx, &by) {
+    y := y1
+    Loop 30 {
+        if !PixelSearch(&rx, &ry, x1, y, x2, y2, 0xFE5E60, 18)
+            return false
+        if PixelSearch(&wx, &wy, rx - 7, ry + 4, rx + 7, ry + 27, 0xFFFFFF, 40) {
+            bx := rx, by := ry
+            return true
+        }
+        y := ry + 1                                       ; red without the bar: look further down
+        if y > y2
+            return false
+    }
+    return false
+}
+
+ClaimQuests() {
+    static lastAt := 0
+    static QUEST_BTN  := [1855, 525]           ; QUEST in the lobby, right side above SHOP
+    static QUEST_TABS := [[839, 320], [991, 320]]   ; Daily, Weekly
+    static QUEST_X    := [1248, 240]           ; the window's close cross
+    static QUEST_LIST := [1205, 360, 1262, 880]     ; the column of the Complete buttons' right corners (where the "!" sits)
+    if lastAt && A_TickCount - lastAt < 300000 || !QuestBadge(1870, 420, 1919, 510, &bx, &by)
+        return false
+    lastAt := A_TickCount
+    SetStatus("quests: collecting rewards")
+    Log("quests: red ! on QUEST - collecting the rewards")
+    ClickXY(QUEST_BTN[1], QUEST_BTN[2])
+    ParkMouse()
+    Sleep 1500
+    ; critic 17.11 (guard run actions): no wheel or clicks over the lobby when the window did not open
+    if !RegExMatch(OcrRegion([760, 205, 460, 75]), "i)Quest") {
+        Log("quests: the quest window did not open - nothing pressed")
+        Screenshot("quests_nowin")
+        return true
+    }
+    got := 0
+    for tab in QUEST_TABS {
+        ClickXY(tab[1], tab[2])
+        ParkMouse()
+        Sleep 800
+        MouseMove 1000, 620, 0
+        Send "{WheelUp 15}"                               ; the list may still be scrolled down from before
+        Sleep 500
+        Loop 6 {
+            lx := -1, ly := -1, same := 0
+            while running && got < 20 && QuestBadge(QUEST_LIST[1], QUEST_LIST[2], QUEST_LIST[3], QUEST_LIST[4], &bx, &by) {
+                same := bx = lx && by = ly ? same + 1 : 0
+                if same >= 2                              ; the same spot 3 times: that button does not take it (a new quest may slide in once)
+                    break
+                lx := bx, ly := by
+                ClickXY(bx - 55, by + 40)                 ; the Complete button: the "!" circle (its top edge found) sits on its top-right corner
+                got++
+                Sleep 1000
+            }
+            if !running
+                return true
+            MouseMove 1000, 620, 0
+            Send "{WheelDown 3}"
+            Sleep 600
+        }
+    }
+    ClickXY(QUEST_X[1], QUEST_X[2])
+    ParkMouse()
+    Sleep 800
+    Log("quests: " got " Complete button(s) pressed")
+    if got = 0
+        Screenshot("quests_none")                         ; the "!" was on QUEST but no button matched - the shot shows why
+    return true
 }
 
 SeePlay(&x, &y) {
@@ -2794,11 +2911,79 @@ InfAssistReset() {
     lastReset := A_TickCount
 }
 
+; 17.11 (user: the replay skipped skills): a skill key the run holds over 250 ms is let go and pressed again every ~70 ms, one key
+; at a time (as the Skill buffer), so it fires the moment its cooldown ends. A single recorded press came too early whenever the
+; cooldown ended a little later than in the recording. Short presses (< 250 ms) are played exactly as recorded.
+RouteTapSkills(down) {
+    static last := 0, turn := 0, upCode := "", upAt := 0
+    if upCode != "" {                                     ; a key let go by us: down again 50 ms later (the game reads keys once a frame)
+        if NowMs() - upAt < 50                            ; critic 17.11: no Sleep here - the route's own steps keep their time
+            return
+        if running && down.Has(upCode)                    ; the route let it go meanwhile: it stays up
+            SendInput "{" upCode " down}"
+        upCode := "", last := NowMs()
+        return
+    }
+    if !down.Count || NowMs() - last < 70
+        return
+    held := []
+    for code, at in down
+        if NowMs() - at > 250 && RegExMatch(code, "i)sc([0-9A-F]{3})$", &m) && SKILLBUF_SC.Has(k := "sc" StrUpper(m[1]))
+            && InStr(" " cfg["skillBufKeys"] " ", " " SKILLBUF_SC[k] " ")      ; the keys picked on the Helper page
+            held.Push(code)
+    if !held.Length
+        return
+    turn := Mod(turn, held.Length) + 1
+    upCode := held[turn], upAt := NowMs()
+    SendInput "{" upCode " up}"
+}
+
+; 17.11 (user: "LEAVE after Infinity" was posted in a Dimension): the name of the mode of the current run for logs / webhook lines
+RunName() => lastEntered = "dungeon" ? (DimKind() = "xdim" ? "Extreme Dimension" : "Dimension")
+    : lastEntered = "infinity" ? "Infinity" : lastEntered = "speed" ? "Speed Raid" : lastEntered = "raid" ? "Raid" : "the run"
+
+; 17.11: Extreme is counted on its own (session summary, webhook), not as a Dimension run
+DimStat() => DimKind() = "xdim" ? "xdimRuns" : "dimRuns"
+
+; Infinity / Dimension use Loadout 2; Extreme can use Loadout 3 (switch on the Extreme page) while Speed Raid is off
+DimLoadout(goal) => goal = "dungeon" && cfg["xdimL3"] = "1" && cfg["speed"] != "1" && DimKind() = "xdim" ? 3 : 2
+
+; results screen still up (the LEAVE picture or the light REWARDS panel): the dim ENEMIES LEFT under it is not a new run (critic 17.11)
+ResultsUp() {
+    if FindImg("leave.png", &x, &y, 1000, 680, 1450, 840) || FindImg("leave.png", &x, &y, 1000, 680, 1450, 840, "*110 *TransFF00FF")
+        return true
+    light := 0
+    for p in [[1200, 330], [1400, 400], [1100, 650], [900, 430]] {
+        c := PixelGetColor(p[1], p[2])
+        if Min((c >> 16) & 255, (c >> 8) & 255, c & 255) > 200
+            light++
+    }
+    return light >= 4
+}
+
+; Start inside a Dimension (not the lobby, the last mode was a Dimension and a Dimension is the goal): no route and no skills
+; until its results. dimRunAt makes the usual "no RETRY in 2 min" restart the way out of a run that never ends.
+DimMidCheck() {
+    global dimMid, dimRunAt, dimArm
+    dimMid := false, dimArm := 0
+    if lastEntered != "dungeon" || Target() != "dungeon" || !WinExist(GAME) || SeePlay(&px, &py)
+        return
+    ; Giant / Halloween / ... start their route by themselves at the first fight frame. Extreme: the route starts when ENEMIES LEFT
+    ; shows - or at once when it is already there (user 17.11: players press F1 after REPLAY; the character waits at the spawn and
+    ; no enemy comes there, so a late start plays the same). The results screen (the HUD shows under it too) is seen by DimRetry first: RETRY, then the usual start.
+    if DimKind() = "xdim" {
+        dimArm := A_TickCount, dimRunAt := A_TickCount - 480000   ; critic 17.11: no run in 2 min (menu, raid by hand, unknown screen) -> Roblox restart, not a wait for ever
+        Log("started inside Extreme: the recorded run starts with ENEMIES LEFT (at once if it is on screen)")
+    }
+}
+
 GiantDetect() => DimKind() = "giant" && cfg["giantDetect"] = "1"
 
 RunRoute(route) {
     global xdimStartAt, dimRetryAt
+    global routeNow
     shift := Num("dimShift", 0)
+    now := routeNow, routeNow := false                    ; the caller just saw ENEMIES LEFT: no waiting
     if !route.Length {
         Log("  dungeon route not started: no recorded run for " DimKind() " (Edit the run on the Dimension page)")
         xdimStartAt := 0
@@ -2810,14 +2995,34 @@ RunRoute(route) {
     ; orange things in the lobby or the modes menu are not the giants (3.11 20:36 the run started in the menu)
     h := ENEMIES_HOME
     seen := false, strong := 0, timed := false   ; 14.11: Giant after RETRY also waits dimReplayWait s (no enemy detection)
-    if kind = "xdim" || xdimStartAt {                     ; Extreme: the map is different every day - the run starts a set time after Start
+    if now {
+        seen := true, timed := true, xdimStartAt := 0
+        if kind = "xdim" && running
+            Sleep Num("xdimHudWait", 2000)                ; as after RETRY: ENEMIES LEFT + 2 s
+    }
+    else if kind = "xdim" || xdimStartAt {                ; Extreme: the map is different every day - the run starts a set time after Start
         wait := Num(kind = "xdim" ? "xdimWait" : "dimReplayWait", 15) * 1000   ; 8.11: also after REPLAY in Halloween / Death (the HUD start missed the replayed run); 14.11 own setting
         xdimStartAt := xdimStartAt || A_TickCount
+        ; 17.11 (players: Extreme runs went wrong, black screen at the start): a run the Recorder started at ENEMIES LEFT ("; start hud")
+        ; starts when the HUD shows here too - the map loads in a different time every run. No HUD by wait + 45 s: started as before.
+        ; 17.11 (user): Extreme always starts by ENEMIES LEFT + xdimHudWait (2 s), the old fixed timer is only the fallback (+45 s)
+        ; 17.11 (user: "the same for the simple Dimensions"): Halloween / Death / ... after RETRY too - ENEMIES LEFT, then dimWait (and
+        ; dimRetryWait after the RETRY press, the character cannot move earlier) below. Giant keeps its giants detection / its timer.
+        hudRun := kind != "giant"
+        if hudRun
+            wait += 45000
         left := false                                     ; 14.11 21:10 (player): the old lobby is still on screen for the first seconds after Start - that PLAY cancelled the run
         while running && A_TickCount - xdimStartAt < wait {
             SetStatus((kind = "xdim" ? "Extreme" : kind) " Dimension: the run starts in " Ceil((wait - (A_TickCount - xdimStartAt)) / 1000) " s")
             ; 8.11 13:18:24: right after REPLAY the reload showed PLAY and cancelled the run - not the lobby yet.
             ; Now: PLAY is a cancel only after it was gone once (the loading screen) and came back. Extreme: never (21:16 - a PLAY-like look 4 s after Start in the map cancelled it again).
+            RewardsPoll()                                 ; the Extreme crystal card goes out now, not after the next run (RunRoute blocks Step)
+            if hudRun && A_TickCount - xdimStartAt > 3000 && FindImg("enemies_left.png", &px, &py, h[1] - 12, h[2] - 12, h[1] + 66, h[2] + 38, "*80 *TransFF00FF") && !ResultsUp() {
+                hw := kind = "xdim" ? Num("xdimHudWait", 2000) : 0    ; the simple Dimensions wait dimWait in the block after this loop
+                Log("  " (kind = "xdim" ? "Extreme" : kind) " Dimension: ENEMIES LEFT seen " Round((A_TickCount - xdimStartAt) / 1000, 1) " s after Start / RETRY - the run starts" (hw ? " in " Round(hw / 1000, 1) " s" : ""))
+                Sleep hw
+                break
+            }
             playNow := kind != "xdim" && A_TickCount - dimRetryAt > 30000 && FindImg("play.png", &px, &py, 1500, 800, 1920, 1060) && !RunButtonSeen()   ; not with the AUTO button on screen (a false PLAY)
             if !playNow
                 left := true
@@ -2828,6 +3033,8 @@ RunRoute(route) {
             }
             Sleep 400
         }
+        if hudRun && A_TickCount - xdimStartAt >= wait
+            Log("  " (kind = "xdim" ? "Extreme" : kind) " Dimension: no ENEMIES LEFT in " wait // 1000 " s - the run starts anyway")
         xdimStartAt := 0
         seen := running, timed := true
     }
@@ -2869,8 +3076,10 @@ RunRoute(route) {
     t0 := NowMs(), down := routeDown := Map()                          ; 13.11: QPC ms (A_TickCount moves in 15.6 ms steps)
     for st in route {
         due := st[1] + shift
-        while running && NowMs() - t0 < due
+        while running && NowMs() - t0 < due {
+            RouteTapSkills(down)
             Sleep Min(10, Max(1, Floor(due - (NowMs() - t0)) - 1))
+        }
         if !running
             break
         if st[2] = "ptr" {                                ; the recording PC's pointer settings for the replay (back below)
@@ -2900,7 +3109,7 @@ RunRoute(route) {
         }
         SendInput "{" st[3] (st[2] = "kd" ? " down}" : " up}")
         if st[2] = "kd"
-            down[st[3]] := true
+            down[st[3]] := NowMs()
         else if down.Has(st[3])
             down.Delete(st[3])
     }
@@ -3158,7 +3367,7 @@ DimStuck() {
         return false
     since := 0
     Screenshot("dim_teleport")
-    RestartRoblox("Dimension: TELEPORT on screen for 10 s (a mob was missed)", , 60000)
+    RestartRoblox(RunName() ": TELEPORT on screen for 10 s (a mob was missed)", , 60000)
     return true
 }
 ; Dimension results (S rank, RETRY / LEAVE): both words in the button row, read with OCR every 0.3 s. Nothing is
@@ -3182,11 +3391,11 @@ DimRetry() {
             return true
         lastFight := A_TickCount - FIGHT_STICKY, dimRunAt := 0
         if !dimHandled
-            dimHandled := true, Stat("dimRuns")
+            dimHandled := true, Stat(DimStat())
         onlyLeave := 0
-        Log("Dimension results without RETRY (the game's teleport hung) - restarting Roblox")
+        Log(RunName() " results without RETRY (the game's teleport hung) - restarting Roblox")
         Screenshot("dim_onlyleave")
-        RestartRoblox("Dimension: results without RETRY (teleport hung)", , 60000)
+        RestartRoblox(RunName() ": results without RETRY (teleport hung)", , 60000)
         return true
     }
     onlyLeave := 0
@@ -3206,16 +3415,16 @@ DimRetry() {
     if first
         DimCardsStart()
     if Target() = "dungeon" {
-        SetStatus("Dimension results: pressing RETRY")
+        SetStatus(RunName() " results: pressing RETRY")
         ; routeDone stays true until the results are gone (below): a click the game ignored ("0 Players want to retry") is pressed again
         retryPending := true, dimRetryAt := A_TickCount
         if first
-            Stat("dimRuns")
+            Stat(DimStat())
         else
             Log("  RETRY still on screen - pressing again")
         ClickXY(757, 795)
     } else {
-        SetStatus("Dimension results: raid time, pressing LEAVE")
+        SetStatus(RunName() " results: raid time, pressing LEAVE")
         ClickXY(1350, 795)
     }
     ParkMouse()

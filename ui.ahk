@@ -431,7 +431,7 @@ UiCompute() {
     dDone := raidDoneKey = RaidKey() ? "done" : cfg["raid"] = "1" && !RaidHourOk(RaidHour()) ? "skipped" : "not yet"
     return dRaid "|" dSpeed "|" dGoal "|" dDone "|" uiStatus "|" running "|" curPage "|" hoverId "|" uiLog.Length
         . "|" (WinExist(GAME) != 0) "|" curLoadout "|" (running && A_TickCount - lastFight < FIGHT_STICKY)
-        . "|" sess["raids"] "," sess["infRuns"] "," sess["raidGems"] "," sess["raidTokens"] "," runTokens "," sess["speedRuns"] "," sess["dimRuns"] "," sess["speedGems"] "," sess["dimGems"] "," sess["speedTokens"]
+        . "|" sess["raids"] "," sess["infRuns"] "," sess["raidGems"] "," sess["raidTokens"] "," runTokens "," sess["speedRuns"] "," sess["dimRuns"] "," sess["speedGems"] "," sess["dimGems"] "," sess["speedTokens"] "," sess["xdimRuns"] "," sess["xdimCrys"]
         . "|" (curPage = "stats" ? A_Sec // 5 : "") "|" setupDone setupOpen setupRan setupRes.Length StrLen(setupBanner)
         . "|" curTab "|" popOpen "|" busy "|" SessClockTxt()
         . (skin = "compact" ? "|" CInfLeft() : "")
@@ -654,9 +654,58 @@ FlipKey(key) {
         Log("toggle click ignored: bot is still stopping")
         return
     }
+    was := ModeEff()
     cfg[key] := cfg[key] = "1" ? "0" : "1"
     IniWrite cfg[key], INI, "raid", key
     Log("setting " key " = " cfg[key] " (applies at once)")
+    ModeNotesAdd(key, was)
+}
+
+; ---- 17.11 (user): a switch that turns another mode off / on - a sound, an amber "!" on that Modes tab and on Modes in the
+; sidebar, and the line on that tab (shown 8 s after it is opened). Only the effective state counts: a mode that was off stays quiet.
+ModeNotes() {                                            ; tab -> {text, seen} (a static: this line is below the auto-execute part)
+    static m := Map()
+    return m
+}
+ModeEff() => Map("inf", cfg["infinity"] = "1" && cfg["dungeon"] != "1" && cfg["xdim"] != "1"
+               , "dim", cfg["dungeon"] = "1" && cfg["xdim"] != "1"
+               , "xdim", cfg["xdimL3"] = "1" && cfg["speed"] != "1")
+ModeNotesAdd(key, was) {
+    static names := Map("dungeon", "Dimension", "xdim", "Extreme", "speed", "Speed Raid")
+    static what := Map("inf", "Infinity", "dim", "Dimension", "xdim", "Loadout 3 for Extreme")
+    static own := Map("inf", "infinity", "dim", "dungeon", "xdim", "xdimL3")
+    if !names.Has(key)
+        return
+    now := ModeEff(), said := false
+    for tab, v in now {
+        if v = was[tab] || own[tab] = key
+            continue
+        text := what[tab] (v ? " is on again: " : " is off now: ") names[key] " was turned " (cfg[key] = "1" ? "on" : "off")
+        ModeNotes()[tab] := {text: text, seen: 0}
+        Log("  " text)
+        said := true
+    }
+    if said
+        SetTimer(() => Sfx("err"), -200)                  ; after the switch's own click sound
+}
+
+; the note of the open Modes tab, left of the key hints; it goes 8 s after the tab was opened
+ModeNoteDraw(y, w) {
+    if curPage != "modes"
+        return
+    tab := curTab = "" ? "general" : curTab
+    if !ModeNotes().Has(tab)
+        return
+    n := ModeNotes()[tab]
+    if !n.seen
+        n.seen := A_TickCount, SetTimer(UiInvalidate, -8100)
+    if A_TickCount - n.seen > 8000 {
+        ModeNotes().Delete(tab)
+        return
+    }
+    Dot(CX + 2, y + 5, 14, "F5B942")
+    Tx("!", "ui", 10, 1, "2B1D00", CX + 2, y + 5, 14, 14, 1)
+    Tx(n.text, "ui", 12, 1, "F5B942", CX + 22, y, w - 22, 24)
 }
 
 ; short raid name for chips and the compact picker
@@ -1585,7 +1634,8 @@ PageHome() {
     tw := (CWD - 3 * 12) // 4, th := 70
     for i, t in [["NEXT RAID", dRaid], ["NEXT SPEED RAID", dSpeed], ["GOAL NOW", dGoal], ["THIS HOUR'S RAID", dDone]]
         Tile2(CX + (i - 1) * (tw + 12), CY, tw, th, t[1], t[2], t[2] = "done")
-    for i, t in [["RAIDS", String(sess["raids"])], ["INFINITY RUNS", String(sess["infRuns"])], ["GEMS", String(SessSum(GEM_KEYS))],
+    farm := cfg["xdim"] = "1" ? ["EXTREME RUNS", "xdimRuns"] : cfg["dungeon"] = "1" ? ["DIMENSION RUNS", "dimRuns"] : ["INFINITY RUNS", "infRuns"]   ; 17.11: the farm mode that is on
+    for i, t in [["RAIDS", String(sess["raids"])], [farm[1], String(sess[farm[2]])], ["GEMS", String(SessSum(GEM_KEYS))],
                  ["TOKENS", SessSum(TOKEN_KEYS) (runTokens && (runKind = "raid" || runKind = "speed") ? "  +" runTokens : "")]]
         Tile2(CX + (i - 1) * (tw + 12), CY + th + 10, tw, th, t[1], t[2], false)
     sy := CY + 2 * th + 10                                ; the status line is gone from Home: the header chip shows it
@@ -1835,9 +1885,15 @@ PageDimension2() {
     gk := dk != "giant"
     SRow(lx, y0 + RH2 * 5, cw, "Giant detection", "On: waits for the giants on screen. Off: timer below", 46, lk ? why : gk ? "Giant only" : "")
     Sw2(lx, y0 + RH2 * 5, cw, cfg["giantDetect"] = "1", "sw_giantDetect", FlipKey.Bind("giantDetect"), lk || gk)
-    rk := lk || GiantDetect()                                 ; Giant with detection on: no timer
-    SRow(lx, y0 + RH2 * 6, cw, "Wait after REPLAY", "Seconds before the run starts again", 150, lk ? why : GiantDetect() ? "Off while detection is on" : "")
-    Stp2(lx, y0 + RH2 * 6, cw, StpFmt(Num("dimReplayWait", 15), "s"), StepCfg.Bind("dimReplayWait", -1, 1, 60, 15), StepCfg.Bind("dimReplayWait", 1, 1, 60, 15), "dimReplayWait", rk)
+    if gk {                                                   ; 17.11: Halloween / Death / ... start by ENEMIES LEFT + this (also after REPLAY)
+        dw := Num("dimWait", 2000)
+        SRow(lx, y0 + RH2 * 6, cw, "Start after ENEMIES LEFT", "Seconds after it shows before the run starts", 150, lk ? why : "")
+        Stp2(lx, y0 + RH2 * 6, cw, Round(dw / 1000, 1) " s", StepCfg.Bind("dimWait", -500, 0, 10000, 2000), StepCfg.Bind("dimWait", 500, 0, 10000, 2000), "dimWait", lk)
+    } else {
+        rk := lk || GiantDetect()                             ; Giant with detection on: no timer
+        SRow(lx, y0 + RH2 * 6, cw, "Wait after REPLAY", "Seconds before the run starts again", 150, lk ? why : GiantDetect() ? "Off while detection is on" : "")
+        Stp2(lx, y0 + RH2 * 6, cw, StpFmt(Num("dimReplayWait", 15), "s"), StepCfg.Bind("dimReplayWait", -1, 1, 60, 15), StepCfg.Bind("dimReplayWait", 1, 1, 60, 15), "dimReplayWait", rk)
+    }
     rt := FrzGet("route" dk cfg["dimMethod"], DimRoute.Bind(dk))
     rec := rt == DUNGEON_ROUTE ? "Empty slot - the built-in run is played"   ; 14.11: every slot is the player's; only an empty Giant slot falls back
         : rt.Length ? rt.Length " steps · " Round(rt[rt.Length][1] / 1000, 1) " s" : "No recording"
@@ -1880,9 +1936,13 @@ PageXdim2() {
     segItems := ["Easy", "Normal", "Nightmare", "Extreme"]
     SRow(lx, y0 + RH2, CWD, "Difficulty", lk ? why : "Which Extreme card the bot picks", SegW(segItems))
     Seg(lx, y0 + RH2, CWD, segItems, IsInteger(cfg["xdimPick"]) ? Min(4, Max(1, Integer(cfg["xdimPick"]))) : 1, "seg_xdim", PickXdimI, lk)
-    SRow(lx, y0 + RH2 * 2, cw, "Wait after Start", "Seconds for the map to load", 150, lk ? why : "")
-    Stp2(lx, y0 + RH2 * 2, cw, StpFmt(Num("xdimWait", 15), "s"), StepCfg.Bind("xdimWait", -1, 5, 60, 15), StepCfg.Bind("xdimWait", 1, 5, 60, 15), "xdimWait", lk)
+    hw := Num("xdimHudWait", 2000)                       ; 17.11: the run starts by ENEMIES LEFT + this (the map load time does not matter any more)
+    SRow(lx, y0 + RH2 * 2, cw, "Start after ENEMIES LEFT", "Seconds after it shows before the run starts", 150, lk ? why : "")
+    Stp2(lx, y0 + RH2 * 2, cw, Round(hw / 1000, 1) " s", StepCfg.Bind("xdimHudWait", -500, 0, 10000, 2000), StepCfg.Bind("xdimHudWait", 500, 0, 10000, 2000), "xdimHudWait", lk)
     TxP("Each map keeps its own run (dimension\extreme_<map>). Record it while that map is played.", "ui", 11, C.dim, lx + 2, y0 + RH2 * 3 + 8, cw - 4, 40)
+    l3k := lk ? why : cfg["speed"] = "1" ? "Speed Raid is on: it uses Loadout 3" : ""     ; 17.11: Loadout 3 is free only without Speed Raid
+    SRow(lx, y0 + RH2 * 3 + 56, cw, "Use Loadout 3", "Extreme runs with Loadout 3 (Speed Raid is off)", 46, l3k)
+    Sw2(lx, y0 + RH2 * 3 + 56, cw, cfg["xdimL3"] = "1", "sw_xdimL3", FlipKey.Bind("xdimL3"), l3k != "")
     l := FrzGet("xcyc", XdimCycle), mp := FrzGet("xpos0", XdimPos), id := l[mp]
     SRow(rx, y0, cw, "Today's map", "Day " mp " of " l.Length ". Move it if the bot counts wrong", 140, lk ? why : "")
     Stp2(rx, y0, cw, XdimName(id), XdimShift.Bind(-1), XdimShift.Bind(1), "xdmap", lk)
@@ -1891,8 +1951,10 @@ PageXdim2() {
     by := y0 + RH2 * 2 + (RH2 - 34) // 2
     Btn(rx + cw - 196, by, 96, 34, "Recorder", "xd_edit", DimEditK.Bind("xdim"), true, "", lk)
     Btn(rx + cw - 94, by, 94, 34, "Folder", "xd_dir", (*) => OpenPath(A_ScriptDir "\dimension"), false, "", lk)
+    ; 17.11: mouse camera turns never replay the same - keyboard-only runs (arrow keys turn the camera) are stable
+    TxP("For a stable run, record with the keyboard only. Better not to use the mouse.", "ui", 11, C.hi, rx + 2, y0 + RH2 * 3 + 8, cw - 4, 40)
     if FileExist(A_ScriptDir "\dimension\extreme\log.txt")
-        TxP("Your old run is in dimension\extreme: copy it into extreme_" id " if it is this map.", "ui", 11, C.dim, rx + 2, y0 + RH2 * 3 + 8, cw - 4, 40)
+        TxP("Your old run is in dimension\extreme: copy it into extreme_" id " if it is this map.", "ui", 11, C.dim, rx + 2, y0 + RH2 * 3 + 56, cw - 4, 40)
 }
 
 ; < > on the Extreme page: today's map is one place back / forward in the list (the anchor moves to today)
@@ -1932,18 +1994,19 @@ PageStats() {
     if A_TickCount - statCacheT > 5000 || !statCache.Count {
         statCacheT := A_TickCount
         sc := Map()
-        for k in ["raids", "speedRuns", "infRuns", "dimRuns"]
+        for k in ["raids", "speedRuns", "infRuns", "dimRuns", "xdimRuns"]
             sc["d_" k] := StatDay(k)
-        for k in ["raidsTotal", "speedRunsTotal", "infRunsTotal", "dimRunsTotal", "restartsTotal"]
+        for k in ["raidsTotal", "speedRunsTotal", "infRunsTotal", "dimRunsTotal", "xdimRunsTotal", "restartsTotal"]
             sc[k] := IniRead(INI, "stats", k, "0")
+        sc["crysDay"] := IntOr0(StatDay("xdimCrys")), sc["crysAll"] := IntOr0(IniRead(INI, "stats", "xdimCrysTotal", "0"))
         sc["gemsDay"] := DaySum(GEM_KEYS), sc["gemsAll"] := TotalSum(GEM_KEYS)
         sc["tokDay"] := DaySum(TOKEN_KEYS), sc["tokAll"] := TotalSum(TOKEN_KEYS)
         statCache := sc
     }
     sc := statCache
     ; tiles
-    tw := (CWD - 36) // 4
-    for i, t in [["raids", "Raids today"], ["speedRuns", "Speed Raids today"], ["infRuns", "Infinity today"], ["dimRuns", "Dimension today"]] {
+    tw := (CWD - 48) // 5                                 ; 17.11: + Extreme
+    for i, t in [["raids", "Raids today"], ["speedRuns", "Speed today"], ["infRuns", "Infinity today"], ["dimRuns", "Dimension today"], ["xdimRuns", "Extreme today"]] {
         x := CX + (i - 1) * (tw + 12)
         Glass(x, CY, tw, 84)
         Tx(StatNum(sc["d_" t[1]]), "mono", 28, 1, C.text, x + 16, CY + 8, tw - 32, 40)
@@ -1951,29 +2014,30 @@ PageStats() {
     }
     ; Rewards: this run / today / total (gems and tokens of all modes together)
     ty := CY + 96, c0 := 180, cw := (CWD - 40 - c0) // 3
-    Glass(CX, ty, CWD, 114)
+    Glass(CX, ty, CWD, 146)
     Tx("REWARDS", "ui", 11, 1, C.dim, CX + 20, ty + 12, c0, 18)
     for j, h in ["THIS RUN", "TODAY", "TOTAL"]
         Tx(h, "ui", 11, 1, C.dim, CX + 20 + c0 + (j - 1) * cw, ty + 12, cw - 12, 18, 2)
     FillRR(CX + 20, ty + 34, CWD - 40, 1, 1, C.ov, 26)
     cur := runTokens && (runKind = "raid" || runKind = "speed") ? "  +" runTokens : ""
     rows := [["Gems", StatNum(SessSum(GEM_KEYS)), sc["gemsDay"], sc["gemsAll"]],
-             ["Tokens", StatNum(SessSum(TOKEN_KEYS)) cur, sc["tokDay"], sc["tokAll"]]]
+             ["Tokens", StatNum(SessSum(TOKEN_KEYS)) cur, sc["tokDay"], sc["tokAll"]],
+             ["Crystals", StatNum(sess["xdimCrys"]), sc["crysDay"], sc["crysAll"]]]          ; Extreme
     for i, r in rows {
         ry := ty + 40 + (i - 1) * 32
         Tx(r[1], "ui", 14, 1, C.text, CX + 20, ry, c0, 30)
         Tx(r[2], "mono", 15, 1, C.hi, CX + 20 + c0, ry, cw - 12, 30, 2)
         Tx(StatNum(r[3]), "mono", 15, 1, C.text, CX + 20 + c0 + cw, ry, cw - 12, 30, 2)
         Tx(StatNum(r[4]), "mono", 15, 1, C.text, CX + 20 + c0 + 2 * cw, ry, cw - 12, 30, 2)
-        if i = 1
+        if i < rows.Length
             FillRR(CX + 20, ry + 31, CWD - 40, 1, 1, C.ov, 20)
     }
     ; All time
-    ay := ty + 114 + 12, a0 := 110, aw := (CWD - 40 - a0) // 5
+    ay := ty + 146 + 12, a0 := 110, aw := (CWD - 40 - a0) // 6
     Glass(CX, ay, CWD, 82)
     Tx("ALL TIME", "ui", 11, 1, C.dim, CX + 20, ay + 12, a0, 18)
-    heads := ["RAIDS", "SPEED RAIDS", "INFINITY", "DIMENSION", "ROBLOX RESTARTS"]
-    keys := ["raidsTotal", "speedRunsTotal", "infRunsTotal", "dimRunsTotal", "restartsTotal"]
+    heads := ["RAIDS", "SPEED RAIDS", "INFINITY", "DIMENSION", "EXTREME", "RESTARTS"]
+    keys := ["raidsTotal", "speedRunsTotal", "infRunsTotal", "dimRunsTotal", "xdimRunsTotal", "restartsTotal"]
     FillRR(CX + 20, ay + 34, CWD - 40, 1, 1, C.ov, 26)
     Tx("Total", "ui", 14, 1, C.text, CX + 20, ay + 42, a0, 30)
     for j, h in heads {
@@ -2177,7 +2241,7 @@ DrawSidebar2() {
     }
     y := 68
     for it in [["home", "Home", 0xE80F], ["modes", "Modes", 0xE8FD], ["connect", "Connect", 0xE71B], ["stats", "Stats", 0xE9D2], ["helper", "Helper", 0xE945], ["settings", "Settings", 0xE713]] {
-        NavItem2(it[1], it[2], it[3], y, curPage = it[1], SetPage.Bind(it[1]))
+        NavItem2(it[1], it[2], it[3], y, curPage = it[1], SetPage.Bind(it[1]), it[1] = "modes" ? ModeNotes().Count : 0)
         if it[1] = "helper" {                            ; 15.11: new tab - a small neon "NEW" up and to the right of the name
             Glow(130, y + 13, 24, 11, C.hi, 70)
             FillRR(114, y + 5, 32, 15, 7, C.hi, 40)
@@ -2270,6 +2334,7 @@ DrawHeader2() {
 DrawKeys2() {
     y := GH - 14 - LOGH - 26
     x := CX + CWD - 284
+    ModeNoteDraw(y, CWD - 312)
     x += KeyCap(x, y, "F1") + 6
     Tx("Start", "ui", 12, 0, C.dim, x, y, 44, 24)
     x += 56
@@ -2346,6 +2411,10 @@ ModesTabs() {
             else
                 Dot(x + 14 + tw + 6, CY + 13, 7, C.idle, 150)
         }
+        if ModeNotes().Has(t[1]) && !on {                   ; 17.11: another switch changed this tab
+            Dot(x + w - 12, CY + 1, 13, "F5B942")
+            Tx("!", "ui", 9, 1, "2B1D00", x + w - 12, CY + 1, 13, 13, 1)
+        }
         if on
             ux := x + 6 - CX, uw := w - 12                   ; underline: drawn after the loop, it slides (220 ms)
         Hit(x, CY, w, 34, id, SetTab.Bind(t[1]))
@@ -2365,6 +2434,8 @@ PageGeneral() {
     Stp2(lx, y0, cw, StpFmt(sec, "time"), StepTime.Bind("infStop", -30, 600, 3480, 57 * 60 + 30), StepTime.Bind("infStop", 30, 600, 3480, 57 * 60 + 30), "infStop")
     SRow(lx, y0 + RH2, cw, "Loadouts", "Switch the loadout by mode through the Bag: raid 1, Infinity or Dimension 2, Speed Raid 3", 46)
     Sw2(lx, y0 + RH2, cw, cfg["loadouts"] = "1", "sw_loadouts", FlipKey.Bind("loadouts"))
+    SRow(lx, y0 + RH2 * 2, cw, "Quest rewards", "In the lobby: take finished Daily and Weekly quests (red ! on QUEST)", 46)
+    Sw2(lx, y0 + RH2 * 2, cw, cfg["quests"] = "1", "sw_quests", FlipKey.Bind("quests"))
     ev := Num("raidEvery", 1)
     SRow(rx, y0, cw, "Raid every", "Hours between raids", 140)
     Stp2(rx, y0, cw, StpFmt(ev, "h"), StepCfg.Bind("raidEvery", -1, 1, 24, 1), StepCfg.Bind("raidEvery", 1, 1, 24, 1), "raidEvery")

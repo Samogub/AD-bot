@@ -8,6 +8,9 @@ CARD_BOX := [700, 330, 1700, 560]                ; where the cards can be (they 
 tokFromScreen := false                            ; raid tokens of this run were read from the results: the in-fight counter must not be added
 dimHandled := false                              ; Dimension results screen already handled (cleared when the route starts)
 rwPendingAt := 0                                 ; Dimension: background OCR of the gem number started at this tick
+rwXdim := false, rwShot := "", rwCrys := 0, rwGemsX := 0, crPendingAt := 0   ; crPendingAt: Extreme crystal number OCR started (background)
+OCR6_IN  := A_Temp "\adbot031_ocr6.png"            ; Extreme crystal number: own files, async
+OCR6_OUT := A_Temp "\adbot031_ocr6.txt"                     ; 17.11: the results being read are Extreme (own stats + webhook card with this screenshot)
 OCR5_IN  := A_Temp "\adbot031_ocr5.png"            ; results line (Time / Wave / PITY): own files, async, never shared with OCR3
 OCR5_OUT := A_Temp "\adbot031_ocr5.txt"
 RESULT_BOX := [840, 530, 540, 170]
@@ -86,15 +89,41 @@ RewardCards(kind) {
 
 ; Dimension results: the number area is saved first, the OCR runs in the background (RETRY must not wait for it)
 DimCardsStart() {
-    global rwPendingAt
+    global rwPendingAt, rwXdim, rwShot, rwCrys, rwGemsX, crPendingAt
+    rwXdim := DimKind() = "xdim", rwShot := "", rwCrys := 0, rwGemsX := 0
+    if rwXdim && cfg["hookWins"] = "1" && WebhookOk(WebhookUrl())
+        rwShot := Screenshot("xdim_win")                 ; now, while the rewards are on the screen (RETRY comes before the OCR answer)
+    ; 17.11 (shot 10:54): Extreme gives red crystals (card with the number at its bottom-left), not gems. The number area is saved
+    ; now, the OCR runs in the background like the Dimension gems (the old read here waited for the OCR and held RETRY up)
+    if rwXdim {
+        crPendingAt := 0
+        Loop 5 {                                         ; the card may still be drawn: up to 0.4 s
+            if CardFind("card_xdim.png", &cx, &cy) {
+                try FileDelete OCR6_OUT
+                if SaveRegion(OCR6_IN, cx - 37, cy + 62, 64, 34) = 0
+                    OcrCall(OCR6_IN, OCR6_OUT, "-White", false), crPendingAt := A_TickCount
+                break
+            }
+            if A_Index < 5
+                Sleep 100
+        }
+        if !crPendingAt {
+            Log("  Extreme: crystal card not found on the results")
+            WebhookXdimWin(rwShot)
+        }
+    }
     found := false
-    Loop 10 {                                            ; the cards may still be drawn: up to 1 s
+    Loop rwXdim ? 1 : 10 {                               ; the cards may still be drawn: up to 1 s (Extreme: one look - gems are rare there)
         ; 9.11: since 6.11 the gem icon on the Dimension results looks different (the old card_gem.png never matched there): own template first
         if found := CardFind("card_gem_dim.png", &gx, &gy) || CardFind("card_gem.png", &gx, &gy)
             break
         Sleep 100
     }
     if !found {
+        if rwXdim {                                      ; Extreme: no gem card is normal (crystals only)
+            ResultLineStart("dimension")
+            return
+        }
         Log("  Dimension: gem card not found on the results")
         static shots := 0
         if ++shots <= 2                                  ; 9.11: gems stayed 0 for days - the shot shows what the results look like now
@@ -155,9 +184,39 @@ ResultLinePoll() {
     }
 }
 
+; Extreme crystal number from the background OCR (a 2nd try with a softer threshold if the first read nothing); then the webhook card
+CrystalPoll() {
+    global crPendingAt, rwCrys
+    static soft := false
+    if !crPendingAt
+        return
+    if FileExist(OCR6_OUT) {
+        txt := ""
+        try txt := FileRead(OCR6_OUT, "UTF-8")
+        try FileDelete OCR6_OUT
+        if !(rwCrys := CardParse(txt)) && !soft {
+            soft := true
+            OcrCall(OCR6_IN, OCR6_OUT, "-White -Thresh 175", false), crPendingAt := A_TickCount
+            return
+        }
+        soft := false, crPendingAt := 0
+        if rwCrys {
+            Stat("xdimCrys", rwCrys)
+            Log("Extreme: crystals " rwCrys)
+        } else
+            Log("  Extreme: crystal number not read")
+        WebhookXdimWin(rwShot)
+    } else if A_TickCount - crPendingAt > 20000 {
+        soft := false, crPendingAt := 0
+        Log("  Extreme: crystal number OCR gave no answer in 20 s")
+        WebhookXdimWin(rwShot)
+    }
+}
+
 RewardsPoll() {
-    global rwPendingAt
+    global rwPendingAt, rwGemsX
     ResultLinePoll()                                     ; Time / Wave / PITY line, also in the background
+    CrystalPoll()
     if !rwPendingAt
         return
     if FileExist(OCR3_OUT) {
@@ -166,8 +225,10 @@ RewardsPoll() {
         try FileDelete OCR3_OUT
         rwPendingAt := 0
         if (n := CardParse(txt)) {
-            Stat("dimGems", n)
-            Log("Dimension: gems " n)
+            Stat(rwXdim ? "xdimGems" : "dimGems", n)
+            Log((rwXdim ? "Extreme" : "Dimension") ": gems " n)
+            if rwXdim
+                rwGemsX := n                             ; shown on the Extreme card (posted by CrystalPoll)
         } else
             Log("  Dimension: gems could not be read")
     } else if A_TickCount - rwPendingAt > 20000 {

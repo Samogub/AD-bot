@@ -91,6 +91,10 @@
 
 ## 🩹 Recent fixes
 
+- **Extreme and Dimension runs start reliably (17.11, players)** - Extreme and the simple Dimensions (Halloween, Death, ...) now start the recorded run when **ENEMIES LEFT** shows (+2 s, set on the Extreme / Dimension page), not after a fixed timer. Press F1 right after REPLAY and the run plays from the beginning - no more random skills. The Recorder starts by itself at ENEMIES LEFT, skips Shift (Shift Lock) and records mouse moves only with the right button held. Tip: record with the keyboard only for a stable run.
+- **Extreme stats and crystals (17.11)** - Extreme is counted on its own (Home, Stats, session summary) and its red crystals are read from the results; with **Raid wins** on, the webhook posts an **EXTREME WON** card. Optional: **Use Loadout 3** for Extreme while Speed Raid is off.
+- **Quest rewards (17.11)** - turn on **Quest rewards** (Modes > General): in the lobby the bot takes finished Daily / Weekly quests (red ! on QUEST). Off by default.
+- **Smaller fixes (17.11)** - held skills in a recorded run are pressed until they fire; the DIMENSION card is clicked higher (chat no longer covers it); restart messages name the right mode; a switch that turns another mode off now shows a "!" on that tab.
 - **Raid win card in Discord (16.11, players)** - turn on **Raid wins** on the Connect page: after every raid win the webhook posts a card with gems, tokens, fight time, session totals and the rewards screenshot. Off by default; with it on, **Send test** shows a sample card.
 - **New Helper tab: Skill buffer (15.11)** - for playing by hand: turn on **Skill buffer** on the new **Helper** page, stop the bot (F2) and hold skill keys in Roblox. Each held skill is pressed again and again until you let go, so it fires the moment its cooldown ends. Several keys at once work; click a key on the page to leave it out.
 - **Giant Dimension slot 1 has a run again (15.11)** - a new download comes with the author's Giant run in slot 1 (`dimension\giant\log.txt`, keyboard only). UPDATE puts it only into an empty slot 1 and never over your own recording.

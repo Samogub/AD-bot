@@ -26,6 +26,9 @@ BUTTONS := Map("l", "Left", "r", "Right", "m", "Middle", "x1", "X1", "x2", "X2")
 rec := false, playing := false, dir := "", held := Map(), recStart := 0, shotAt := 0, shots := 0
 steps := [], shown := 0, recMs := 0, curRow := 0, markRow := 0, mdx := 0, mdy := 0, absX := "", absY := ""
 recSens := "", carryX := 0, carryY := 0                   ; recSens: sensitivity the run was recorded with ("" = this PC now, "0" = an old file without it)
+recHud := false, armed := false                           ; 17.11: recHud = the run starts at ENEMIES LEFT ("; start hud"); armed = F7 pressed, waiting for it
+shiftSaid := false
+HUD_BOX := [1828, 807, 1906, 857]                         ; ENEMIES LEFT on the right (the bot's ENEMIES_HOME), 1920x1080
 recPtr := ""                                              ; Windows pointer settings of the recording PC ("t1 t2 accel speed"), "" = unknown (old file)
 mskip := Map(), absSeen := false, ptrWas := "", playDown := Map()             ; ptrWas: the settings to put back after a replay (also on exit)
 mySens := ReadSens()                                      ; Roblox sensitivity x100 (0.36 = 36)
@@ -45,6 +48,7 @@ sensEd.OnEvent("LoseFocus", (*) => CommitSens())
 gw.AddText("x+14 yp+3", "Speed %")
 spd := gw.AddEdit("x+6 yp-3 w44 Number Background0A0613 cDDDDDD", "100")
 info := gw.AddText("xm y+6 w520 c8F88AA", "")
+gw.AddText("xm y+2 w520 cE0B04A", "For a stable run record with the keyboard only. Better not to use the mouse.")   ; 17.11: mouse turns replay differently every time
 lv := gw.AddListView("xm y+6 w520 r18 Background12101C cDDDDDD", ["#", "Time s", "Wait ms", "Action", "Key", "Hold ms"])
 lv.ModifyCol(1, 40), lv.ModifyCol(2, "70 Right"), lv.ModifyCol(3, "70 Right"), lv.ModifyCol(4, 110), lv.ModifyCol(5, 110), lv.ModifyCol(6, "70 Right")
 lv.OnEvent("DoubleClick", (ctl, row) => row && EditRow(row))
@@ -260,15 +264,18 @@ RawIn(wParam, lParam, msg, hwnd) {
     if NumGet(buf, 0, "uint") != 0                            ; not a mouse
         return
     fl := NumGet(buf, hdr, "ushort"), x := NumGet(buf, hdr + 12, "int"), y := NumGet(buf, hdr + 16, "int")
+    ; 17.11: the camera turns only with the right button held (Shift Lock off) - other moves were thousands of tiny steps that
+    ; turned the replayed camera 180-360 degrees with Shift Lock on and did nothing without it
+    cam := GetKeyState("RButton", "P")
     if fl & 1 {
         ; 13.11: MOUSE_MOVE_ABSOLUTE (RDP, virtual machines, Parsec, tablets) was dropped - no camera turn was recorded there.
         ; 0..65535 over the screen (over all screens with flag 2): the change since the last one, in px
         w := fl & 2 ? SysGet(78) : A_ScreenWidth, h := fl & 2 ? SysGet(79) : A_ScreenHeight
         px := x * w / 65535, py := y * h / 65535
-        if absX != ""
+        if absX != "" && cam
             mdx += px - absX, mdy += py - absY
         absX := px, absY := py, absSeen := true
-    } else
+    } else if cam
         mdx += x, mdy += y
 }
 
@@ -300,16 +307,54 @@ CheckHeld() {
 
 ToggleRec() {
     global rec, dir, shots, held, recStart, steps, recMs, recSens, shown, recPtr, absX, absY, mdx, mdy, mskip, absSeen
+    global armed
     if playing
         return
+    if armed {                                                ; F7 again while waiting: cancel
+        armed := false
+        SetTimer(ArmTick, 0)
+        Say("REC cancelled")
+        return
+    }
     CommitSens()
     if !rec && !mySens {                                      ; a run recorded without the real sensitivity turns the camera wrong for everybody
         Say("Set your Roblox sensitivity first, then press F7")
         MsgBox("Type your Roblox sensitivity (Roblox Settings > Camera > Camera Sensitivity) in the field at the top, then press F7.`n`nThe run is saved with it, so it plays right on other PCs.", "Recorder", "Icon! 4096")
         return
     }
+    if !rec && !HudSeen() {                                   ; 17.11: start at ENEMIES LEFT, like the bot (the map loads in a different time every run)
+        armed := true
+        SetTimer(ArmTick, 50)
+        Say("Waiting for ENEMIES LEFT - the recording starts by itself (F7 = cancel)")
+        return
+    }
+    StartStop(false)
+}
+
+ArmTick() {
+    global armed
+    if !armed || !HudSeen()
+        return
+    armed := false
+    SetTimer(ArmTick, 0)
+    SoundBeep 1200, 80
+    StartStop(true)
+}
+
+HudSeen() {
+    for f in ["enemies_left.png", "enemies_left_2.png"]
+        if FileExist(A_ScriptDir "\..\img\" f)
+            try if ImageSearch(&x, &y, HUD_BOX[1], HUD_BOX[2], HUD_BOX[3], HUD_BOX[4], "*80 *TransFF00FF " A_ScriptDir "\..\img\" f)
+                return true
+    return false
+}
+
+; hud: started by ENEMIES LEFT (the run is marked "; start hud", the bot starts it at the same moment)
+StartStop(hud) {
+    global rec, dir, shots, held, recStart, steps, recMs, recSens, shown, recPtr, absX, absY, mdx, mdy, mskip, absSeen, recHud
     rec := !rec
     if rec {
+        recHud := hud
         recSens := String(mySens)                             ; a new recording is made with this sensitivity (the field may change while recording)
         recPtr := PtrNow()
         DllCall("winmm\timeBeginPeriod", "uint", 1)           ; the 8 ms move timer really runs every 8 ms
@@ -320,7 +365,7 @@ ToggleRec() {
         shots := 0, recStart := NowMs(), held := Map(), steps := [], recMs := 0, shown := 0, absX := "", absY := "", mdx := 0, mdy := 0, mskip := Map(), absSeen := false
         lv.Delete()
         UpdateInfo()
-        Say("REC...  (F7 = stop)")
+        Say("REC" (hud ? " from ENEMIES LEFT" : "") "...  (F7 = stop)")
     } else {
         DllCall("winmm\timeEndPeriod", "uint", 1)
         if absSeen                                            ; absolute input (RDP...): the moves are screen px already - played 1:1
@@ -356,6 +401,12 @@ KeyDown(ih, vk, sc) {
     name := GetKeyName(Format("vk{:x}sc{:x}", vk, sc)), code := Format("vk{:02X}sc{:03X}", vk, sc)
     if !rec || name ~= "^F(7|8|9|10)$" || held.Has(code)         ; held: ignore auto-repeat (a key held since before F7 goes in at its 1st repeat)
         return
+    if name ~= "^[LR]Shift$" {                                ; 17.11: Shift switches Shift Lock - a toggle, so the replay turned it off as often as on
+        global shiftSaid
+        if !shiftSaid
+            shiftSaid := true, Say("Shift is not recorded: turn Shift Lock off in Roblox, turn the camera with the right mouse button")
+        return
+    }
     held[code] := NowMs()
     Add("kd", code, name, true)
 }
@@ -792,6 +843,8 @@ LogText() {
         out .= "; sens " s "`n"
     if recPtr != ""
         out .= "; ptr " recPtr "`n"
+    if recHud
+        out .= "; start hud`n"
     for st in steps {
         t += st.w                                             ; t = the moment of the step (for kp: the press)
         out .= Format("{:.3f}", t / 1000) "," st.k "," st.a "," StrReplace(st.b, ",", "Comma") "," (st.k = "kp" ? st.h : st.c) "," st.s "`n"   ; key name "," would split the line
@@ -826,16 +879,16 @@ ParseLog(txt) {
             merged.Push(st), i += 1
     }
     return {steps: merged, sens: RegExMatch(txt, "m)^; sens (\d+)", &m) ? m[1] : "0",
-        ptr: RegExMatch(txt, "m)^; ptr (-?\d+ -?\d+ -?\d+ \d+)", &pm) ? pm[1] : ""}
+        ptr: RegExMatch(txt, "m)^; ptr (-?\d+ -?\d+ -?\d+ \d+)", &pm) ? pm[1] : "", hud: !!RegExMatch(txt, "m)^; start hud")}
 }
 
 Load(folder) {
-    global dir, steps, recSens, recPtr
+    global dir, steps, recSens, recPtr, recHud
     if !FileExist(folder "\log.txt")
         return false
     dir := RTrim(folder, "\") "\"
     r := ParseLog(FileRead(dir "log.txt"))
-    steps := r.steps, recSens := r.sens, recPtr := r.ptr
+    steps := r.steps, recSens := r.sens, recPtr := r.ptr, recHud := r.hud
     Fill()
     Say("opened: " dir " (" steps.Length " steps)")
     return true
@@ -880,7 +933,7 @@ ExportRun() {
 }
 
 ImportRun() {
-    global steps, recSens, recPtr
+    global steps, recSens, recPtr, recHud
     if rec || playing
         return
     gw.Opt("+OwnDialogs")
@@ -906,7 +959,7 @@ ImportRun() {
         return
     if dir != "" && FileExist(dir "log.txt")
         FileCopy dir "log.txt", dir "log.before_import_" FormatTime(, "yyyyMMdd_HHmmss") ".txt", 1   ; the run that was here before stays
-    steps := r.steps, recSens := r.sens, recPtr := r.ptr
+    steps := r.steps, recSens := r.sens, recPtr := r.ptr, recHud := r.hud
     Fill()
     UpdateInfo()
     Say("imported " steps.Length " steps - Save to keep it (the old run: log.before_import_*.txt)")
