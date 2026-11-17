@@ -1564,6 +1564,14 @@ Step() {
     ; 17.11 (players: "skills right after Start / after I pressed REPLAY"): started inside a run - the route cannot join it in the
     ; middle and skills only stand still. Wait for the results (RETRY above); a run that never ends hits the 2 min restart (DimMidCheck).
     ; 17.11 (players test a fresh recording: Save, REPLAY, F1 while the run loads): play the run the moment ENEMIES LEFT shows
+    ; user 17.11: in Extreme skills come only after the recorded run (and before the results) - a fight with no route played yet
+    ; plays the route instead (Giant / Halloween / ... do it by themselves at the first fight frame, below)
+    if inFight && !dimArm && !dimMid && !routeDone && !xdimStartAt && lastEntered = "dungeon" && DimKind() = "xdim" {
+        dimArm := A_TickCount
+        if !dimRunAt
+            dimRunAt := A_TickCount - 480000              ; no route in 2 min -> the usual Roblox restart
+        Log("Extreme fight without its recorded run - the run starts now (no skills before it)")
+    }
     if dimArm && lastEntered = "dungeon" {
         h := ENEMIES_HOME
         if SeePlay(&px, &py)
@@ -2966,8 +2974,24 @@ ResultsUp() {
 DimMidCheck() {
     global dimMid, dimRunAt, dimArm
     dimMid := false, dimArm := 0
-    if lastEntered != "dungeon" || Target() != "dungeon" || !WinExist(GAME) || SeePlay(&px, &py)
+    ; 17.11 15:02 (user: skills at the start of the run again): no Target() check - at the hour's raid time the goal is the raid, but
+    ; the run started by hand still plays its route; its results then get LEAVE (DimRetry) and the bot goes for the raid
+    if !WinExist(GAME) || SeePlay(&px, &py)
         return
+    ; user 17.11: look at the AUTO button first - a raid / Speed Raid run has it, a Dimension has not
+    if RunButtonSeen() {
+        if lastEntered = "dungeon" {
+            SetEntered(Target() = "speed" ? "speed" : "raid")
+            Log("started inside a run with the AUTO button - a raid, not a Dimension")
+        }
+        return
+    }
+    if lastEntered != "dungeon" {
+        if !(cfg["xdim"] = "1" || cfg["dungeon"] = "1")    ; Infinity farm (it has an AUTO button of its own): not this
+            return
+        SetEntered("dungeon")                             ; no AUTO button, a Dimension mode is on: it is a Dimension run
+        Log("started inside a run without the AUTO button - a Dimension")
+    }
     ; Giant / Halloween / ... start their route by themselves at the first fight frame. Extreme: the route starts when ENEMIES LEFT
     ; shows - or at once when it is already there (user 17.11: players press F1 after REPLAY; the character waits at the spawn and
     ; no enemy comes there, so a late start plays the same). The results screen (the HUD shows under it too) is seen by DimRetry first: RETRY, then the usual start.

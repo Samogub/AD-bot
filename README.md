@@ -91,6 +91,7 @@
 
 ## 🩹 Recent fixes
 
+- **No skills at the start of an Extreme run (17.11, players)** - started (F1) inside a run, the bot first looks at the AUTO button: with it, it is a raid; without it, a Dimension - the recorded run plays from its start, also at raid time (then LEAVE on the results and the raid). In Extreme, skills come only after the recorded run, never before it.
 - **Extreme and Dimension runs start reliably (17.11, players)** - Extreme and the simple Dimensions (Halloween, Death, ...) now start the recorded run when **ENEMIES LEFT** shows (+2 s, set on the Extreme / Dimension page), not after a fixed timer. Press F1 right after REPLAY and the run plays from the beginning - no more random skills. The Recorder starts by itself at ENEMIES LEFT, skips Shift (Shift Lock) and records mouse moves only with the right button held. Tip: record with the keyboard only for a stable run.
 - **Extreme stats and crystals (17.11)** - Extreme is counted on its own (Home, Stats, session summary) and its red crystals are read from the results; with **Raid wins** on, the webhook posts an **EXTREME WON** card. Optional: **Use Loadout 3** for Extreme while Speed Raid is off.
 - **Quest rewards (17.11)** - turn on **Quest rewards** (Modes > General): in the lobby the bot takes finished Daily / Weekly quests (red ! on QUEST). Off by default.
