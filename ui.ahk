@@ -217,8 +217,6 @@ Layout() {
 }
 
 StarTick() {
-    if routePlaying                                      ; 18.11: no full redraw while the recorded route plays (its key timing)
-        return
     if animOnTimer && skin = "full"                      ; AnimTick draws the frames (stars too) while an animation runs
         return
     if (C.stars && skin = "full" || skin = "compact") && DllCall("IsWindowVisible", "ptr", g.Hwnd)   ; compact: the moving neon on grey text
@@ -404,8 +402,6 @@ Blend(c1, c2, v) {
 UiTick() {
     static ticks := 0, lastSig := ""
     global hbPulse, animDirty
-    if routePlaying                                      ; 18.11: the hotbar waits ~1-2 min while the recorded route plays
-        return
     ticks++
     hbPulse := !hbPulse                                  ; blink of the hotbar dot
     if Mod(ticks, 4) = 0 && MonitorGetCount() != layoutMons    ; a monitor was plugged / unplugged

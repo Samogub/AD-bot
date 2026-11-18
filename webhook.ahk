@@ -21,8 +21,7 @@ WebhookSend(json, file := "") {
         return false
     att := file != "" && FileExist(file) ? ' -F "file1=@' file ';filename=shot.jpg"' : ""
     ; payload_json=<file: curl reads the JSON from the file, so no quoting trouble on the command line
-    ; log 18.11: a failed post was never seen - Discord's HTTP code goes to HOOK_CODES, WebhookCodes() logs the bad ones
-    try Run(A_ComSpec ' /c "curl.exe -s -o NUL -w "%{http_code}\n" -m 60 -F "payload_json=<' jf '"' att ' "' url '" >> "' HOOK_CODES '" & del "' jf '""', , "Hide")
+    try Run(A_ComSpec ' /c "curl.exe -s -m 60 -F "payload_json=<' jf '"' att ' "' url '" & del "' jf '""', , "Hide")
     catch
         return false
     return true
@@ -40,27 +39,10 @@ WebhookStatus() => "**AD Bot** " FormatTime(, "HH:mm") " - " lastStatus
     . "`nThis run: raids " sess["raids"] ", Speed " sess["speedRuns"] ", Infinity " sess["infRuns"] ", Dimensions " sess["dimRuns"] ", Extreme " sess["xdimRuns"]
     . ", gems " SessSum(GEM_KEYS) ", tokens " SessSum(TOKEN_KEYS) ", restarts " sess["restarts"]
 
-HOOK_CODES := A_Temp "\adbot_hook_codes.txt"
-
-; Discord answers 200 / 204 to a good post; anything else (400 bad payload, 401/404 dead link, 429 too many, 000 no network) is logged
-WebhookCodes() {
-    if !FileExist(HOOK_CODES)
-        return
-    try {
-        txt := FileRead(HOOK_CODES)
-        FileDelete HOOK_CODES
-    } catch
-        return
-    for c in StrSplit(Trim(txt, "`r`n "), "`n", "`r ")
-        if c != "" && !RegExMatch(c, "^2\d\d$")
-            Log("webhook: Discord answered " c (c = "000" ? " (no connection)" : c = "404" || c = "401" ? " (the webhook link is dead - make a new one)" : c = "429" ? " (too many posts)" : ""))
-}
-
 ; every minute while the bot runs: a status post with a game screenshot every webhookMin minutes
 WebhookTick() {
     static last := 0
-    WebhookCodes()
-    if !running || routePlaying || !WebhookOk(WebhookUrl())   ; 18.11: no screenshot JPEG in the middle of a recorded route (log 17.11 00:21)
+    if !running || !WebhookOk(WebhookUrl())
         return
     m := IsInteger(v := Trim(IniRead(INI, "raid", "webhookMin", "30"))) ? Integer(v) : 30
     if m <= 0 || last && A_TickCount - last < m * 60000
