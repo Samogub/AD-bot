@@ -333,7 +333,7 @@ ToggleRec() {
 
 ArmTick() {
     global armed
-    if !armed || !HudSeen()
+    if !armed || playing || !HudSeen()                    ; critic 18.11: F8 Play while armed - the HUD must not start a recording over the replay
         return
     armed := false
     SetTimer(ArmTick, 0)
@@ -562,6 +562,9 @@ Play(from, to) {
         return
     CommitSens()
     playing := true
+    global armed
+    if armed                                                  ; critic 18.11: Play cancels the armed F7 recording
+        armed := false, SetTimer(ArmTick, 0), Say("REC cancelled (Play)")
     curRow := from                                            ; F10 in the first moments marks this row, not an old one
     carryX := 0, carryY := 0
     if WinExist(GAME)
