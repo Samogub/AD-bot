@@ -91,6 +91,10 @@
 
 ## 🩹 Recent fixes
 
+- **Recording speed is saved (19.11, players)** - set **Speed %** in the Recorder (e.g. 92) and press Save: the speed is kept in the run file and the bot plays the run at that speed too.
+- **Dimension card click higher (19.11, players)** - the bot clicks near the top of the DIMENSION card, so an open chat no longer covers it.
+- **Fewer restarts, no missed raids (18.11)** - Giant no longer restarts Roblox every few runs ("RETRY / LEAVE does not work"); a stuck Extreme run restarts 3 min after the recording, not 10; no skills on the Extreme results; the raid is no longer missed when the Dimension window was open at raid time; no new Infinity in the last 3 min before the raid; anti-AFK with the game's Auto (Error 278) and a faster disconnect check; safer Auto presses by colour; the HUD and webhook wait while a recording plays; correct Dimension run counts; the webhook logs failed posts; the auto-start no longer stops with an error window.
+
 - **No skills at the start of an Extreme run (17.11, players)** - started (F1) inside a run, the bot first looks at the AUTO button: with it, it is a raid; without it, a Dimension - the recorded run plays from its start, also at raid time (then LEAVE on the results and the raid). In Extreme, skills come only after the recorded run, never before it.
 - **Extreme and Dimension runs start reliably (17.11, players)** - Extreme and the simple Dimensions (Halloween, Death, ...) now start the recorded run when **ENEMIES LEFT** shows (+2 s, set on the Extreme / Dimension page), not after a fixed timer. Press F1 right after REPLAY and the run plays from the beginning - no more random skills. The Recorder starts by itself at ENEMIES LEFT, skips Shift (Shift Lock) and records mouse moves only with the right button held. Tip: record with the keyboard only for a stable run.
 - **Extreme stats and crystals (17.11)** - Extreme is counted on its own (Home, Stats, session summary) and its red crystals are read from the results; with **Raid wins** on, the webhook posts an **EXTREME WON** card. Optional: **Use Loadout 3** for Extreme while Speed Raid is off.
