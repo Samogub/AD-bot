@@ -81,6 +81,10 @@ AutoBlind(kind) {
         return
     if autoBlindTries >= 3 && A_TickCount - autoAt < 15000
         return
+    if AutoWhite() < 100 {                                  ; log 18.11: pressed on a black screen / after the results (brightness 0..83) - the
+        autoBlindSince := 0                                 ; white AUTO letters must really be there (~215 px OFF, ~231 ON)
+        return
+    }
     autoBlindTries := autoBlindTries >= 3 ? 1 : autoBlindTries + 1, autoAt := A_TickCount, autoBlindSince := 0
     Log(kind ": Auto looks off (brightness " Round(m) ") - pressed by colours (try " autoBlindTries ")")
     AutoClickBtn()
@@ -110,6 +114,19 @@ AutoOffVisible() {
     return red >= 2
 }
 
+; white px of the AUTO letters (OFF 714..761 x 846..857, ON 706..768 x 848..856); 0 when the grab fails
+AutoWhite() {
+    white := 0
+    try {
+        px := GrabPixels(AUTO_BTN[1] - 34, AUTO_BTN[2] - 8, 64, 14)
+        Loop 64 * 14 {
+            c := NumGet(px, (A_Index - 1) * 4, "uint")
+            white += (c >> 16 & 0xFF) > 215 && (c >> 8 & 0xFF) > 215 && (c & 0xFF) > 215
+        }
+    }
+    return white
+}
+
 AutoOnVisible() {
     b := AutoBox()
     return FindImg("auto_on.png", &x, &y, b[1], b[2], b[3], b[4])
@@ -121,12 +138,7 @@ AutoOnVisible() {
 ; Colours measured on 22 shots of 14.11: ON point 1 ~(250,120,180) and point 4 ~(180,150,230); OFF point 1 ~(141,72,75), mean ~72.
 AutoBtnByColour() {
     try {
-        px := GrabPixels(AUTO_BTN[1] - 34, AUTO_BTN[2] - 8, 64, 14)    ; the letters: OFF 714..761 x 846..857, ON 706..768 x 848..856
-        white := 0
-        Loop 64 * 14 {
-            c := NumGet(px, (A_Index - 1) * 4, "uint")
-            white += (c >> 16 & 0xFF) > 215 && (c >> 8 & 0xFF) > 215 && (c & 0xFF) > 215
-        }
+        white := AutoWhite()
         if white < 140 || white > 320                     ; the letters have ~215 (OFF) / ~231 (ON) white px
             return ""
         d := AutoDiamond()                                ; 8 points x r, g, b
@@ -271,6 +283,8 @@ AutoEnsure0() {
         autoOffSince := A_TickCount
     if A_TickCount - autoAt < 3000                          ; give the click time to show
         return
+    if offNow && autoLook = "black" && autoTries && A_TickCount - autoAt < 10000
+        return
     if offNow {
         stable := A_TickCount - autoOffSince
         need := autoLook = "black" ? 1500 : 300
@@ -307,7 +321,7 @@ AutoEnsure0() {
         autoAt := A_TickCount
         Log(kind ": Auto pressed (try " autoTries ", diamond " autoLook " rgb=" autoRGB ", stable " stable " ms)")
         AutoClickBtn()
-    } else if AutoOnVisible() {
+    } else if AutoOnVisible() || AutoBtnByColour() = "on" {
         autoNoneSince := 0
         if autoTries {
             Log("Auto: on after try " autoTries)

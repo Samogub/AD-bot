@@ -333,7 +333,7 @@ ToggleRec() {
 
 ArmTick() {
     global armed
-    if !armed || !HudSeen()
+    if !armed || playing || !HudSeen()                    ; critic 18.11: F8 Play while armed - the HUD must not start a recording over the replay
         return
     armed := false
     SetTimer(ArmTick, 0)
@@ -562,6 +562,9 @@ Play(from, to) {
         return
     CommitSens()
     playing := true
+    global armed
+    if armed                                                  ; critic 18.11: Play cancels the armed F7 recording
+        armed := false, SetTimer(ArmTick, 0), Say("REC cancelled (Play)")
     curRow := from                                            ; F10 in the first moments marks this row, not an old one
     carryX := 0, carryY := 0
     if WinExist(GAME)
@@ -845,6 +848,8 @@ LogText() {
         out .= "; ptr " recPtr "`n"
     if recHud
         out .= "; start hud`n"
+    if (sp := Integer("0" spd.Value)) && sp != 100          ; 19.11 player: the bot plays the run at this speed too (Save keeps it)
+        out .= "; speed " Max(10, sp) "`n"
     for st in steps {
         t += st.w                                             ; t = the moment of the step (for kp: the press)
         out .= Format("{:.3f}", t / 1000) "," st.k "," st.a "," StrReplace(st.b, ",", "Comma") "," (st.k = "kp" ? st.h : st.c) "," st.s "`n"   ; key name "," would split the line
@@ -879,7 +884,8 @@ ParseLog(txt) {
             merged.Push(st), i += 1
     }
     return {steps: merged, sens: RegExMatch(txt, "m)^; sens (\d+)", &m) ? m[1] : "0",
-        ptr: RegExMatch(txt, "m)^; ptr (-?\d+ -?\d+ -?\d+ \d+)", &pm) ? pm[1] : "", hud: !!RegExMatch(txt, "m)^; start hud")}
+        ptr: RegExMatch(txt, "m)^; ptr (-?\d+ -?\d+ -?\d+ \d+)", &pm) ? pm[1] : "", hud: !!RegExMatch(txt, "m)^; start hud"),
+        speed: RegExMatch(txt, "m)^; speed (\d+)", &spm) ? spm[1] : "100"}
 }
 
 Load(folder) {
@@ -888,7 +894,7 @@ Load(folder) {
         return false
     dir := RTrim(folder, "\") "\"
     r := ParseLog(FileRead(dir "log.txt"))
-    steps := r.steps, recSens := r.sens, recPtr := r.ptr, recHud := r.hud
+    steps := r.steps, recSens := r.sens, recPtr := r.ptr, recHud := r.hud, spd.Value := r.speed
     Fill()
     Say("opened: " dir " (" steps.Length " steps)")
     return true
@@ -959,7 +965,7 @@ ImportRun() {
         return
     if dir != "" && FileExist(dir "log.txt")
         FileCopy dir "log.txt", dir "log.before_import_" FormatTime(, "yyyyMMdd_HHmmss") ".txt", 1   ; the run that was here before stays
-    steps := r.steps, recSens := r.sens, recPtr := r.ptr, recHud := r.hud
+    steps := r.steps, recSens := r.sens, recPtr := r.ptr, recHud := r.hud, spd.Value := r.speed
     Fill()
     UpdateInfo()
     Say("imported " steps.Length " steps - Save to keep it (the old run: log.before_import_*.txt)")
