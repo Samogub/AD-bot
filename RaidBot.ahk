@@ -339,6 +339,7 @@ cfg := Map(
     "xdimHudWait", IniRead(INI, "raid", "xdimHudWait", "2000"),  ; 17.11: Extreme - ms after ENEMIES LEFT shows before the run starts
     "xdimL3",     IniRead(INI, "raid", "xdimL3", "0"),           ; 17.11: Extreme with Loadout 3 (only while Speed Raid is off - Speed Raid uses it)
     "xdimPick",   IniRead(INI, "raid", "xdimPick", "1"),         ; Extreme Dimension: which of the 4 buttons
+    "dimNoRetry", IniRead(INI, "raid", "dimNoRetry", "2"),     ; 22.11: Dimension (not Extreme) - restart Roblox when no RETRY this many min after the run started; 0 = off
     "dimReplayWait", IniRead(INI, "raid", "dimReplayWait", "15"), ; 14.11 (players): Halloween / Death / other recorded Dimensions - seconds after REPLAY before the run (Extreme: xdimWait)
     "dungeon",    IniRead(INI, "raid", "dungeon", "1"),         ; Giant Dimension (Nightmare, Hardcore, Friends Only) instead of Infinity; experimental
     "speed",      IniRead(INI, "raid", "speed", "1"),          ; Speed Raid раз на 30 min (пріоритет: рейд > speed > Infinity)
@@ -1551,11 +1552,13 @@ Step() {
     ; і навіть коли ENEMIES LEFT "видно" (тьмяний HUD під екраном результатів): інакше Esc-R-Enter виходу на рейд
     ; тисне Enter = RETRY (29.10 21:57: після LEAVE новий забіг, 12 min у Infinity і пропущений рейд 22:00)
     ; no RETRY 2 min after the run started (a run takes ~47 s to the results): stuck somewhere - join again
-    if lastEntered = "dungeon" && dimRunAt && A_TickCount - dimRunAt > (DimKind() = "xdim" ? 600000 : 120000)
+    ; 22.11 (player: Death run longer than 2 min): the limit is the setting dimNoRetry (min, 0 = off); Extreme keeps its own
+    nrMin := Num("dimNoRetry", 2)
+    if lastEntered = "dungeon" && dimRunAt && (DimKind() = "xdim" || nrMin > 0) && A_TickCount - dimRunAt > (DimKind() = "xdim" ? 600000 : nrMin * 60000)
         && (DimKind() != "xdim" || A_TickCount - realFightAt > 30000 || A_TickCount - dimRunAt > 900000) {   ; critic 18.11: Extreme - not while a real fight goes on (15 min cap)
         dimRunAt := 0
         Screenshot("dim_noretry")
-        RestartRoblox(RunName() ": no RETRY " (DimKind() = "xdim" ? "3 min after the recorded run (10 min after its start)" : "2 min after the run started"), , 60000)
+        RestartRoblox(RunName() ": no RETRY " (DimKind() = "xdim" ? "3 min after the recorded run (10 min after its start)" : nrMin " min after the run started"), , 60000)
         return
     }
     ; results first: the dim ENEMIES LEFT HUD shows under them too, and the route must not start there
@@ -3048,7 +3051,7 @@ GiantDetect() => DimKind() = "giant" && cfg["giantDetect"] = "1"
 RunRoute(route) {
     global xdimStartAt, dimRetryAt, dimRunAt
     global routeNow
-    shift := Num("dimShift", 0)
+    shift := 0                                            ; 21.11: Start delay (dimShift) removed from the UI; an old ini value is ignored
     now := routeNow, routeNow := false                    ; the caller just saw ENEMIES LEFT: no waiting
     if !route.Length {
         Log("  dungeon route not started: no recorded run for " DimTitle() " (Edit the run on the Dimension page)")

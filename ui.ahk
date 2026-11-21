@@ -1882,22 +1882,24 @@ PageDimension2() {
     sl := IsInteger(cfg["dimMethod"]) && cfg["dimMethod"] >= 1 && cfg["dimMethod"] <= 5 ? Integer(cfg["dimMethod"]) : 1
     SRow(lx, y0 + RH2 * 2, cw, "Slot", "Which saved run is played; each slot keeps its own", SegW(segItems), lk ? why : "")
     Seg(lx, y0 + RH2 * 2, cw, segItems, sl, "seg_dimSlot", PickDimMethodI, lk)
-    SRow(lx, y0 + RH2 * 3, cw, "Start delay", "Wait this long before the run", 150, lk ? why : "")
-    Stp2(lx, y0 + RH2 * 3, cw, Format("{:g} s", Round(Num("dimShift", 0) / 1000, 1)), StepCfg.Bind("dimShift", -100, 0, 5000, 0), StepCfg.Bind("dimShift", 100, 0, 5000, 0), "dimShift", lk)
-    SRow(lx, y0 + RH2 * 4, cw, "Keep fighting", "Finishes the enemies that are left after the run", 46, lk ? why : "")
-    Sw2(lx, y0 + RH2 * 4, cw, cfg["dimFight"] = "1", "sw_dimFight", FlipKey.Bind("dimFight"), lk)
+    ; 21.11 (user): "Start delay" (dimShift) removed - it did the same as the wait rows below
+    SRow(lx, y0 + RH2 * 3, cw, "Keep fighting", "Finishes the enemies that are left after the run", 46, lk ? why : "")
+    Sw2(lx, y0 + RH2 * 3, cw, cfg["dimFight"] = "1", "sw_dimFight", FlipKey.Bind("dimFight"), lk)
     gk := dk != "giant"
-    SRow(lx, y0 + RH2 * 5, cw, "Giant detection", "On: waits for the giants on screen. Off: timer below", 46, lk ? why : gk ? "Giant only" : "")
-    Sw2(lx, y0 + RH2 * 5, cw, cfg["giantDetect"] = "1", "sw_giantDetect", FlipKey.Bind("giantDetect"), lk || gk)
+    SRow(lx, y0 + RH2 * 4, cw, "Giant detection", "On: waits for the giants on screen. Off: timer below", 46, lk ? why : gk ? "Giant only" : "")
+    Sw2(lx, y0 + RH2 * 4, cw, cfg["giantDetect"] = "1", "sw_giantDetect", FlipKey.Bind("giantDetect"), lk || gk)
     if gk {                                                   ; 17.11: Halloween / Death / ... start by ENEMIES LEFT + this (also after REPLAY)
         dw := Num("dimWait", 2000)
-        SRow(lx, y0 + RH2 * 6, cw, "Start after ENEMIES LEFT", "Seconds after it shows before the run starts", 150, lk ? why : "")
-        Stp2(lx, y0 + RH2 * 6, cw, Round(dw / 1000, 1) " s", StepCfg.Bind("dimWait", -500, 0, 10000, 2000), StepCfg.Bind("dimWait", 500, 0, 10000, 2000), "dimWait", lk)
+        SRow(lx, y0 + RH2 * 5, cw, "Start after ENEMIES LEFT", "Seconds after it shows before the run starts", 150, lk ? why : "")
+        Stp2(lx, y0 + RH2 * 5, cw, Round(dw / 1000, 1) " s", StepCfg.Bind("dimWait", -500, 0, 10000, 2000), StepCfg.Bind("dimWait", 500, 0, 10000, 2000), "dimWait", lk)
     } else {
         rk := lk || GiantDetect()                             ; Giant with detection on: no timer
-        SRow(lx, y0 + RH2 * 6, cw, "Wait after REPLAY", "Seconds before the run starts again", 150, lk ? why : GiantDetect() ? "Off while detection is on" : "")
-        Stp2(lx, y0 + RH2 * 6, cw, StpFmt(Num("dimReplayWait", 15), "s"), StepCfg.Bind("dimReplayWait", -1, 1, 60, 15), StepCfg.Bind("dimReplayWait", 1, 1, 60, 15), "dimReplayWait", rk)
+        SRow(lx, y0 + RH2 * 5, cw, "Wait after REPLAY", "Seconds before the run starts again", 150, lk ? why : GiantDetect() ? "Off while detection is on" : "")
+        Stp2(lx, y0 + RH2 * 5, cw, StpFmt(Num("dimReplayWait", 15), "s"), StepCfg.Bind("dimReplayWait", -1, 1, 60, 15), StepCfg.Bind("dimReplayWait", 1, 1, 60, 15), "dimReplayWait", rk)
     }
+    ; 22.11 (player: a Death run is longer than 2 min and Roblox was restarted at its end)
+    SRow(lx, y0 + RH2 * 6, cw, "Restart if no RETRY", "Roblox restarts when the run has no results by then; off = never", 150, lk ? why : "")
+    Stp2(lx, y0 + RH2 * 6, cw, StpFmt(Num("dimNoRetry", 2), "min"), StepCfg.Bind("dimNoRetry", -1, 0, 30, 2), StepCfg.Bind("dimNoRetry", 1, 0, 30, 2), "dimNoRetry", lk)
     rt := FrzGet("route" dk cfg["dimMethod"], DimRoute.Bind(dk))
     rec := rt == DUNGEON_ROUTE ? "Empty slot - the built-in run is played"   ; 14.11: every slot is the player's; only an empty Giant slot falls back
         : rt.Length ? rt.Length " steps · " Round(rt[rt.Length][1] / 1000, 1) " s" : "No recording"

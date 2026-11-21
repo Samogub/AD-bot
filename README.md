@@ -91,6 +91,9 @@
 
 ## 🩹 Recent fixes
 
+- **Restart if no RETRY setting (22.11, players)** - long Dimension runs (Death) were cut by a Roblox restart 2 min after the start. Dimension page: set how many minutes the bot waits for the results before it restarts Roblox (default 2, 0 = off).
+- **Shift Lock in the Recorder (22.11)** - tick **Shift Lock** in the Recorder to record every mouse move and the Shift key. Start the replay with Shift Lock in the same state as when you recorded.
+- **Start delay removed (22.11)** - it did the same as the wait settings below it on the Dimension page.
 - **Session card in the webhook, accessories counted (21.11)** - on Stop the webhook post now has a picture of the Session card next to the run summary. Dimension accessories (Giant, ...) are counted when ACCESSORY PITY drops back to 0, shown in the Session card, the run summary and the stats.
 - **Extreme Dimension card read again (21.11, players)** - with a new event card on top of the modes menu the bot sometimes did not read the EXTREME DIMENSION card and stood in the menu; it now looks 3 times and logs what it saw.
 

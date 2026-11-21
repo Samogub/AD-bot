@@ -65,6 +65,14 @@ Btn("x+4 w84", "Import", (*) => ImportRun())
 Btn("x+4 w84", "Folder", (*) => Run('explorer.exe "' (dir != "" ? RTrim(dir, "\") : ROOT) '"'))
 Btn("x+4 w96", "Run = my sens", (*) => TagRun())
 shotsCb := gw.AddCheckbox("x+14 yp+4 -Theme Background12101C cDDDDDD", "Screenshots")
+; 21.11 (user): Shift Lock players - every mouse move and Shift are recorded (off = only moves with the right button, no Shift)
+slOn := IniRead(INI, "ui", "recShiftLock", "0") = "1"
+slCb := gw.AddCheckbox("x+10 yp -Theme Background12101C cDDDDDD" (slOn ? " Checked" : ""), "Shift Lock")
+slCb.OnEvent("Click", SetShiftLock)
+SetShiftLock(c, *) {
+    global slOn := c.Value = 1
+    IniWrite(slOn ? "1" : "0", INI, "ui", "recShiftLock")
+}
 status := gw.AddText("xm y+8 w520", "")
 gw.OnEvent("Close", (*) => ExitApp())
 OnExit(AfterPlay)                                         ; closed (or restarted by the bot) in the middle of a replay
@@ -266,7 +274,7 @@ RawIn(wParam, lParam, msg, hwnd) {
     fl := NumGet(buf, hdr, "ushort"), x := NumGet(buf, hdr + 12, "int"), y := NumGet(buf, hdr + 16, "int")
     ; 17.11: the camera turns only with the right button held (Shift Lock off) - other moves were thousands of tiny steps that
     ; turned the replayed camera 180-360 degrees with Shift Lock on and did nothing without it
-    cam := GetKeyState("RButton", "P")
+    cam := slOn || GetKeyState("RButton", "P")               ; 21.11: Shift Lock box on = every move turns the camera
     if fl & 1 {
         ; 13.11: MOUSE_MOVE_ABSOLUTE (RDP, virtual machines, Parsec, tablets) was dropped - no camera turn was recorded there.
         ; 0..65535 over the screen (over all screens with flag 2): the change since the last one, in px
@@ -401,10 +409,10 @@ KeyDown(ih, vk, sc) {
     name := GetKeyName(Format("vk{:x}sc{:x}", vk, sc)), code := Format("vk{:02X}sc{:03X}", vk, sc)
     if !rec || name ~= "^F(7|8|9|10)$" || held.Has(code)         ; held: ignore auto-repeat (a key held since before F7 goes in at its 1st repeat)
         return
-    if name ~= "^[LR]Shift$" {                                ; 17.11: Shift switches Shift Lock - a toggle, so the replay turned it off as often as on
+    if name ~= "^[LR]Shift$" && !slOn {                       ; 17.11: Shift switches Shift Lock - a toggle, so the replay turned it off as often as on
         global shiftSaid
         if !shiftSaid
-            shiftSaid := true, Say("Shift is not recorded: turn Shift Lock off in Roblox, turn the camera with the right mouse button")
+            shiftSaid := true, Say("Shift is not recorded: tick Shift Lock in the Recorder, or turn the camera with the right mouse button")
         return
     }
     held[code] := NowMs()
