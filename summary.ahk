@@ -26,7 +26,7 @@ SessDur(ms) {
 
 SessLogLine() => "RUN SUMMARY: raid " sess["raids"] " (gems " sess["raidGems"] ", tokens " sess["raidTokens"] ")"
     . ", speed " sess["speedRuns"] " (gems " sess["speedGems"] ", tokens " sess["speedTokens"] ")"
-    . ", Infinity " sess["infRuns"] ", Dimension " sess["dimRuns"] " (gems " sess["dimGems"] ")"
+    . ", Infinity " sess["infRuns"] ", Dimension " sess["dimRuns"] " (gems " sess["dimGems"] ", accessories " sess["dimAcc"] ")"
     . ", Extreme " sess["xdimRuns"] " (crystals " sess["xdimCrys"] ", gems " sess["xdimGems"] ")"
     . ", Roblox restarts " sess["restarts"] ", session " SessDur(sessMs)
 
@@ -39,10 +39,10 @@ SummaryHide() {
 }
 
 ; draws the card (HUD 2.0 look, colours C.* of the active theme) into sumBmp; used by SummaryShow and "shots summary"
-SummaryDraw() {
+SummaryDraw(hint := true, k := 0) {                     ; k: fixed scale (the webhook picture), 0 = the HUD size
     global sumBmp, sumPW, sumPH, gr
     W := 360, H := 358
-    SK := CK() * 1.2 * 0.85                              ; follows the HUD SIZE setting; 1.2 (text was small), then -15%
+    SK := k ? k : CK() * 1.2 * 0.85                      ; follows the HUD SIZE setting; 1.2 (text was small), then -15%
     sumPW := Round(W * SK), sumPH := Round(H * SK)
     real := gr
     cv := Canvas(sumPW, sumPH, C.bg)
@@ -59,14 +59,14 @@ SummaryDraw() {
     Tx(from " - " to, "mono", 11, 0, C.dim, 32, 40, 200, 18)
     FillRR(16, 66, W - 32, 1, 0.5, C.lin, 60)
     ; table: right edges of the number columns
-    cols := [["Runs", 168], ["Gems", 224], ["Loot", 280], ["Gems/h", 336]]     ; Loot: raid / Speed tokens, Extreme crystals
+    cols := [["Runs", 168], ["Gems", 224], ["Loot", 280], ["Gems/h", 336]]     ; Loot: raid / Speed tokens, Extreme crystals, Dimension accessories
     Tx("MODE", "ui", 10, 1, C.dim, 28, 74, 80, 18)
     for cc in cols
         Tx(StrUpper(cc[1]), "ui", 10, 1, C.dim, cc[2] - 56, 74, 56, 18, 2)
     rows := [["Raids", sess["raids"], sess["raidGems"], sess["raidTokens"]]
            , ["Speed Raids", sess["speedRuns"], sess["speedGems"], sess["speedTokens"]]
            , ["Infinity", sess["infRuns"], "", ""]
-           , ["Dimension", sess["dimRuns"], sess["dimGems"], ""]
+           , ["Dimension", sess["dimRuns"], sess["dimGems"], sess["dimAcc"]]
            , ["Extreme", sess["xdimRuns"], sess["xdimGems"], sess["xdimCrys"]]]
     y := 94
     for r in rows {
@@ -82,23 +82,40 @@ SummaryDraw() {
     ; tiles: total gems, total tokens, Roblox restarts
     gems := sess["raidGems"] + sess["speedGems"] + sess["dimGems"] + sess["xdimGems"], toks := sess["raidTokens"] + sess["speedTokens"]
     crys := sess["xdimCrys"]
-    tiles := [["Gems", String(gems), PerHour(gems) " /h"], ["Tokens", String(toks), PerHour(toks) " /h"], ["Crystals", String(crys), PerHour(crys) " /h"], ["Restarts", String(sess["restarts"]), "Roblox"]]
+    acc := sess["dimAcc"]
+    tiles := [["Gems", String(gems), PerHour(gems) " /h"], ["Tokens", String(toks), PerHour(toks) " /h"], ["Crystals", String(crys), PerHour(crys) " /h"], ["Accessory", String(acc), PerHour(acc) " /h"], ["Restarts", String(sess["restarts"]), "Roblox"]]
     y += 4
-    for i, t in tiles {                                  ; 17.11: 4 tiles (+ Extreme crystals)
-        x := 16 + (i - 1) * 83
-        FillRR(x, y, 78, 62, 12, C.card, 255)
-        GradRR(x, y, 78, 62, 12, C.g1, 110, C.g1, 0, true)
-        StrokeRR(x, y, 78, 62, 12, C.lin, 70)
-        Tx(StrUpper(t[1]), "ui", 9, 1, C.dim, x + 10, y + 6, 64, 16)
-        Tx(t[2], "head", 18, 1, C.hi, x + 10, y + 20, 64, 26)
-        Tx(t[3], "mono", 9, 0, C.dim, x + 10, y + 44, 64, 14)
+    for i, t in tiles {                                  ; 17.11: 4 tiles (+ Extreme crystals); 20.11: 5 (+ Dimension accessories)
+        x := 16 + (i - 1) * 66.5
+        FillRR(x, y, 62, 62, 12, C.card, 255)
+        GradRR(x, y, 62, 62, 12, C.g1, 110, C.g1, 0, true)
+        StrokeRR(x, y, 62, 62, 12, C.lin, 70)
+        Tx(StrUpper(t[1]), "ui", 8, 1, C.dim, x + 7, y + 6, 52, 16)
+        Tx(t[2], "head", 18, 1, C.hi, x + 7, y + 20, 52, 26)
+        Tx(t[3], "mono", 9, 0, C.dim, x + 7, y + 44, 52, 14)
     }
-    Tx("CLICK ANYWHERE TO CLOSE", "ui", 9, 0, C.dim, 16, H - 22, W - 32, 14, 1, 190)
+    if hint
+        Tx("CLICK ANYWHERE TO CLOSE", "ui", 9, 0, C.dim, 16, H - 22, W - 32, 14, 1, 190)
     hbmNew := ToHbm(cv)
     gr := real
     if sumBmp
         DllCall("DeleteObject", "ptr", sumBmp)
     sumBmp := hbmNew
+}
+
+; 20.11 (user): the Session card alone as a PNG for the webhook's stop post; "" when it could not be saved
+SummaryFile() {
+    try {
+        SummaryDraw(false, 2)
+        file := A_Temp "\adbot_session.png"
+        if DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "ptr", sumBmp, "ptr", 0, "ptr*", &bmp := 0)
+            return ""
+        DllCall("ole32\CLSIDFromString", "wstr", "{557CF406-1A04-11D3-9A73-0000F81EF32E}", "ptr", clsid := Buffer(16))   ; PNG: sharp text
+        res := DllCall("gdiplus\GdipSaveImageToFile", "ptr", bmp, "wstr", file, "ptr", clsid, "ptr", 0)
+        DllCall("gdiplus\GdipDisposeImage", "ptr", bmp)
+        return res = 0 ? file : ""
+    }
+    return ""
 }
 
 SummaryShow() {

@@ -91,6 +91,9 @@
 
 ## 🩹 Recent fixes
 
+- **Session card in the webhook, accessories counted (21.11)** - on Stop the webhook post now has a picture of the Session card next to the run summary. Dimension accessories (Giant, ...) are counted when ACCESSORY PITY drops back to 0, shown in the Session card, the run summary and the stats.
+- **Extreme Dimension card read again (21.11, players)** - with a new event card on top of the modes menu the bot sometimes did not read the EXTREME DIMENSION card and stood in the menu; it now looks 3 times and logs what it saw.
+
 - **Recording speed is saved (19.11, players)** - set **Speed %** in the Recorder (e.g. 92) and press Save: the speed is kept in the run file and the bot plays the run at that speed too.
 - **Dimension card click higher (19.11, players)** - the bot clicks near the top of the DIMENSION card, so an open chat no longer covers it.
 - **Fewer restarts, no missed raids (18.11)** - Giant no longer restarts Roblox every few runs ("RETRY / LEAVE does not work"); a stuck Extreme run restarts 3 min after the recording, not 10; no skills on the Extreme results; the raid is no longer missed when the Dimension window was open at raid time; no new Infinity in the last 3 min before the raid; anti-AFK with the game's Auto (Error 278) and a faster disconnect check; safer Auto presses by colour; the HUD and webhook wait while a recording plays; correct Dimension run counts; the webhook logs failed posts; the auto-start no longer stops with an error window.

@@ -19,7 +19,8 @@ WebhookSend(json, file := "") {
     try FileAppend json, jf, "UTF-8-RAW"
     catch
         return false
-    att := file != "" && FileExist(file) ? ' -F "file1=@' file ';filename=shot.jpg"' : ""
+    SplitPath file, , , &ext
+    att := file != "" && FileExist(file) ? ' -F "file1=@' file ';filename=shot.' (ext = "png" ? "png" : "jpg") '"' : ""   ; 20.11: the Session card is a PNG
     ; payload_json=<file: curl reads the JSON from the file, so no quoting trouble on the command line
     ; log 18.11: a failed post was never seen - Discord's HTTP code goes to HOOK_CODES, WebhookCodes() logs the bad ones
     try Run(A_ComSpec ' /c "curl.exe -s -o NUL -w "%{http_code}\n" -m 60 -F "payload_json=<' jf '"' att ' "' url '" >> "' HOOK_CODES '" & del "' jf '""', , "Hide")

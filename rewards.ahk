@@ -176,6 +176,16 @@ ResultLinePoll() {
                 Log("Dimension run: time " (tm != "" ? tm : "?") (pity != "" ? ", pity " pity : ""))
                 if pity != "" && Integer(mp[1]) >= 48
                     Log("  accessory pity near: " pity)
+                ; 20.11 (user): an accessory drop resets ACCESSORY PITY - a lower number than the last run = one accessory
+                ; (the card itself looks like the character cards, only the background differs)
+                if pity != "" && (dk := DimKind()) != "xdim" {
+                    last := IniRead(INI, "state", "pity_" dk, "")
+                    if IsInteger(last) && Integer(mp[1]) < Integer(last) && Integer(mp[1]) <= 2 {   ; <= 2: an OCR slip (17 read as 7) is no drop
+                        Stat("dimAcc")
+                        Log("Dimension: accessory dropped (pity " last " -> " mp[1] ")")
+                    }
+                    IniWrite mp[1], INI, "state", "pity_" dk
+                }
             }
         }
     } else if A_TickCount - rlPendingAt > 20000 {

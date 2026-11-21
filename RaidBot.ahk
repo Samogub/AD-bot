@@ -238,7 +238,7 @@ lastLoadoutWarn := 0     ; коли востаннє писали УВАГА п�
 pickFails := 0, pickFailHour := "", pickMissAt := 0   ; PickRaidByName: misses of this hour's raid (reset in Start)
 GEM_KEYS := ["raidGems", "speedGems", "dimGems", "xdimGems"], TOKEN_KEYS := ["raidTokens", "speedTokens"]   ; Stats page: all modes together
 raidCountAt := -99999999   ; when a raid was last counted (Start press or results screen)
-sess := Map("raids", 0, "raidGems", 0, "raidTokens", 0, "speedRuns", 0, "speedGems", 0, "speedTokens", 0, "infRuns", 0, "dimRuns", 0, "dimGems", 0, "xdimRuns", 0, "xdimGems", 0, "xdimCrys", 0, "restarts", 0)   ; підсумок поточного запуску бота
+sess := Map("raids", 0, "raidGems", 0, "raidTokens", 0, "speedRuns", 0, "speedGems", 0, "speedTokens", 0, "infRuns", 0, "dimRuns", 0, "dimGems", 0, "xdimRuns", 0, "xdimGems", 0, "xdimCrys", 0, "dimAcc", 0, "restarts", 0)   ; підсумок поточного запуску бота
 FIGHT_STICKY := 15000    ; скільки ms після цього ще битися, якщо екран не розпізнано
 lastReset  := 0          ; коли востаннє робили Esc-R-Enter
 unknownSince := 0        ; відколи екран поспіль не розпізнається (0 = розпізнається)
@@ -486,7 +486,7 @@ Stat(name, n := 1) {
     today := FormatTime(, "yyyyMMdd")
     if IniRead(INI, "stats", "day", "") != today {
         IniWrite today, INI, "stats", "day"
-        for k in ["infRuns", "raids", "raidGems", "raidTokens", "restarts", "speedRuns", "speedGems", "speedTokens", "dimRuns", "dimGems", "xdimRuns", "xdimGems", "xdimCrys"]
+        for k in ["infRuns", "raids", "raidGems", "raidTokens", "restarts", "speedRuns", "speedGems", "speedTokens", "dimRuns", "dimGems", "xdimRuns", "xdimGems", "xdimCrys", "dimAcc"]
             IniWrite 0, INI, "stats", k
     }
     IniWrite IntOr0(IniRead(INI, "stats", name, "0")) + n, INI, "stats", name
@@ -998,7 +998,7 @@ Stop(showSummary := true) {
     if was {
         SessEnd()
         Log(SessLogLine())
-        WebhookPost("**AD Bot** " FormatTime(, "HH:mm") " - stopped. " SessLogLine())
+        WebhookPost("**AD Bot** " FormatTime(, "HH:mm") " - stopped. " SessLogLine(), WebhookOk(WebhookUrl()) ? SummaryFile() : "")   ; 20.11: + the Session card
     }
     DllCall("SetThreadExecutionState", "uint", 0x80000000)
     PaintRun()
@@ -3376,9 +3376,20 @@ EnterExtreme() {
     pick := Min(4, Max(1, Integer(cfg["xdimPick"]))), nm := names[pick], nm4 := SubStr(nm, 1, 4)
     SetStatus("Extreme Dimension: " nm)
     if !OcrLineY([1100, 270, 450, 100], "i)Select|Diffic") {         ; the window is not open yet: open the card
-        cy := OcrLineY([1250, 150, 600, 900], "i)EXTREME\s*DIM")
+        ; 21.11 player (2X WEEKEND card on top): the shot read fine afterwards - the menu may still slide in; 3 looks, the 2nd and 3rd
+        ; only at the card column (x 1340-1540), where the busy art beside it cannot break the line
+        cy := 0
+        for b in [[1250, 150, 600, 900], [1340, 230, 200, 760], [1340, 230, 200, 760]] {
+            if A_Index > 1
+                Sleep 600
+            if cy := OcrLineY(b, "i)EXTREME\s*DIM|XTREME\s*DIMEN")
+                break
+        }
         if !cy {                                          ; critic 18.11: no blind click on the modes menu (another card may teleport to the raid world)
-            Log("  Extreme Dimension: the EXTREME DIMENSION card is not read in the modes menu")
+            seen := ""
+            for ln in OcrRegion([1340, 230, 200, 760], true)
+                seen .= " | " ln[2]
+            Log("  Extreme Dimension: the EXTREME DIMENSION card is not read in the modes menu (OCR saw:" SubStr(seen, 2, 200) ")")
             XdimFail(&fails, "xdim_nocard")
             return
         }
