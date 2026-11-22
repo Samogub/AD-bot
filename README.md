@@ -91,6 +91,7 @@
 
 ## 🩹 Recent fixes
 
+- **Extreme Dimension card found on more screens (22.11, players)** - on some PCs the game text EXTREME was read as "EXTQEME", so the bot never opened the card and restarted Roblox again and again. Small misreads like that are accepted now.
 - **Restart if no RETRY setting (22.11, players)** - long Dimension runs (Death) were cut by a Roblox restart 2 min after the start. Dimension page: set how many minutes the bot waits for the results before it restarts Roblox (default 2, 0 = off).
 - **Shift Lock in the Recorder (22.11)** - tick **Shift Lock** in the Recorder to record every mouse move and the Shift key. Start the replay with Shift Lock in the same state as when you recorded.
 - **Start delay removed (22.11)** - it did the same as the wait settings below it on the Dimension page.

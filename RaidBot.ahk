@@ -3385,7 +3385,7 @@ EnterExtreme() {
         for b in [[1250, 150, 600, 900], [1340, 230, 200, 760], [1340, 230, 200, 760]] {
             if A_Index > 1
                 Sleep 600
-            if cy := OcrLineY(b, "i)EXTREME\s*DIM|XTREME\s*DIMEN")
+            if cy := OcrLineY(b, "i)XTREME|EXT\S{0,2}EME|\SEME\s*DIM")       ; 22.11 player: OCR read "EXTQEME DIMENSION"; never plain DIMENSION (the big left card)
                 break
         }
         if !cy {                                          ; critic 18.11: no blind click on the modes menu (another card may teleport to the raid world)
