@@ -91,7 +91,7 @@
 
 ## 🩹 Recent fixes
 
-- **Giant starts like Extreme (22.11)** - with Giant detection off the bot no longer waits a fixed time after REPLAY: it waits for ENEMIES LEFT, then **Start after ENEMIES LEFT** seconds (Dimension page). "Wait after REPLAY" is gone.
+- **Giant starts like Extreme (22.11)** - with Giant detection off the bot no longer waits a fixed time after REPLAY: it waits for ENEMIES LEFT, then **Start after ENEMIES LEFT** seconds (Dimension page, default 3 s). "Wait after REPLAY" is gone.
 - **Extreme Dimension card found on more screens (22.11, players)** - on some PCs the game text EXTREME was read as "EXTQEME", so the bot never opened the card and restarted Roblox again and again. Small misreads like that are accepted now.
 - **Restart if no RETRY setting (22.11, players)** - long Dimension runs (Death) were cut by a Roblox restart 2 min after the start. Dimension page: set how many minutes the bot waits for the results before it restarts Roblox (default 2, 0 = off).
 - **Shift Lock in the Recorder (22.11)** - tick **Shift Lock** in the Recorder to record every mouse move and the Shift key. Start the replay with Shift Lock in the same state as when you recorded.

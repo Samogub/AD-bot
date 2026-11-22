@@ -1889,9 +1889,9 @@ PageDimension2() {
     SRow(lx, y0 + RH2 * 4, cw, "Giant detection", "On: waits for the giants. Off: ENEMIES LEFT + time below", 46, lk ? why : gk ? "Giant only" : "")
     Sw2(lx, y0 + RH2 * 4, cw, cfg["giantDetect"] = "1", "sw_giantDetect", FlipKey.Bind("giantDetect"), lk || gk)
     ; 17.11: Halloween / Death / ... start by ENEMIES LEFT + this (also after REPLAY); 22.11 (user): Giant with detection off too ("Wait after REPLAY" removed)
-    dw := Num("dimWait", 2000), rk := lk || GiantDetect()     ; Giant with detection on: it waits for the giants, not for this
+    dw := Num("dimWait", 3000), rk := lk || GiantDetect()     ; Giant with detection on: it waits for the giants, not for this
     SRow(lx, y0 + RH2 * 5, cw, "Start after ENEMIES LEFT", "Seconds after it shows before the run starts", 150, lk ? why : GiantDetect() ? "Off while detection is on" : "")
-    Stp2(lx, y0 + RH2 * 5, cw, Round(dw / 1000, 1) " s", StepCfg.Bind("dimWait", -500, 0, 10000, 2000), StepCfg.Bind("dimWait", 500, 0, 10000, 2000), "dimWait", rk)
+    Stp2(lx, y0 + RH2 * 5, cw, Round(dw / 1000, 1) " s", StepCfg.Bind("dimWait", -500, 0, 10000, 3000), StepCfg.Bind("dimWait", 500, 0, 10000, 3000), "dimWait", rk)
     ; 22.11 (player: a Death run is longer than 2 min and Roblox was restarted at its end)
     SRow(lx, y0 + RH2 * 6, cw, "Restart if no RETRY", "Roblox restarts when the run has no results by then; off = never", 150, lk ? why : "")
     Stp2(lx, y0 + RH2 * 6, cw, StpFmt(Num("dimNoRetry", 2), "min"), StepCfg.Bind("dimNoRetry", -1, 0, 30, 2), StepCfg.Bind("dimNoRetry", 1, 0, 30, 2), "dimNoRetry", lk)

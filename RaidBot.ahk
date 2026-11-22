@@ -323,7 +323,7 @@ cfg := Map(
     "soloRaid",   IniRead(INI, "raid", "soloRaid", "1"),        ; рейд: вмикати Friends Only (соло, без інших гравців)
     "raidCreate", IniRead(INI, "raid", "raidCreate", "0"),      ; рейд: 1 = власна кімната через Create (для рейдів, які мало хто ставить у Group Finder), 0 = Group Finder
     "loadouts",   IniRead(INI, "raid", "loadouts", "1"),     ; міняти loadout: рейд - 1, Infinity або dungeon - 2, Speed Raid - 3
-    "dimWait",    IniRead(INI, "raid", "dimWait", "2000"),       ; Dimension: ms to wait after the first enemies are seen, before the run (0 = start at once)
+    "dimWait",    IniRead(INI, "raid", "dimWait", "3000"),       ; Dimension: ms to wait after the first enemies are seen, before the run (0 = start at once)
     "dimShift",   IniRead(INI, "raid", "dimShift", "0"),        ; Dimension: start delay, ms - wait this long after the enemies show up
     "giantDetect", IniRead(INI, "raid", "giantDetect", "1"),     ; 14.11: Giant looks for the giants on screen after RETRY (1) or waits dimReplayWait s (0)
     "hookWins",   IniRead(INI, "raid", "hookWins", "0"),        ; 16.11 (players): Discord post with a screenshot after every raid win
@@ -3135,8 +3135,8 @@ RunRoute(route) {
         Screenshot("route_nostart")
         return
     }
-    if kind != "xdim" && !(timed && GiantDetect()) && running && Num("dimWait", 2000) > 0 {   ; 8.11 (Discord report): the character did not walk, only the skills worked - the game was not ready for movement yet
-        wait := Num("dimWait", 2000)
+    if kind != "xdim" && !(timed && GiantDetect()) && running && Num("dimWait", 3000) > 0 {   ; 8.11 (Discord report): the character did not walk, only the skills worked - the game was not ready for movement yet
+        wait := Num("dimWait", 3000)
         ; 11.11 (player report, log 09:12): after RETRY the giants are seen after ~5 s but the character cannot move yet - the route was played
         ; on the spot (the first run after a restart, which has a longer wait, walked fine). The run of a RETRY starts no earlier than
         ; dimRetryWait (default 10 s) after the RETRY press; the cooldowns are reset in every round, so nothing else has to be waited for.
