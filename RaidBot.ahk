@@ -3077,7 +3077,7 @@ RunRoute(route) {
         ; 17.11 (user): Extreme always starts by ENEMIES LEFT + xdimHudWait (2 s), the old fixed timer is only the fallback (+45 s)
         ; 17.11 (user: "the same for the simple Dimensions"): Halloween / Death / ... after RETRY too - ENEMIES LEFT, then dimWait (and
         ; dimRetryWait after the RETRY press, the character cannot move earlier) below. Giant keeps its giants detection / its timer.
-        hudRun := kind != "giant"
+        hudRun := kind != "giant" || !GiantDetect()           ; 22.11 (user): Giant with detection off starts like Extreme too - ENEMIES LEFT + dimWait
         if hudRun
             wait += 45000
         left := false                                     ; 14.11 21:10 (player): the old lobby is still on screen for the first seconds after Start - that PLAY cancelled the run
@@ -3135,7 +3135,7 @@ RunRoute(route) {
         Screenshot("route_nostart")
         return
     }
-    if kind != "xdim" && !(timed && kind = "giant") && running && Num("dimWait", 2000) > 0 {   ; 8.11 (Discord report): the character did not walk, only the skills worked - the game was not ready for movement yet
+    if kind != "xdim" && !(timed && GiantDetect()) && running && Num("dimWait", 2000) > 0 {   ; 8.11 (Discord report): the character did not walk, only the skills worked - the game was not ready for movement yet
         wait := Num("dimWait", 2000)
         ; 11.11 (player report, log 09:12): after RETRY the giants are seen after ~5 s but the character cannot move yet - the route was played
         ; on the spot (the first run after a restart, which has a longer wait, walked fine). The run of a RETRY starts no earlier than

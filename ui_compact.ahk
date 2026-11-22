@@ -377,7 +377,7 @@ CompactRows(name) {
             rows.Push(CTog(CT("dungeon", "DIM ON", false, "t2_dungeon"), CT("dimFight", "KEEP FIGHT")))
             rows.Push({k: "pick", label: "DIMENSION", kind: "dim"})        ; the list of every Dimension (drop-up, like the raid picker)
             rows.Push(CTog(CT("giantDetect", "GIANT DETECT", DimKindUi() != "giant")))
-            rows.Push(CStep("WAIT AFTER REPLAY", "dimReplayWait", 1, 1, 60, 1, "s", 15, GiantDetect()))
+            rows.Push(CStep("START AFTER ENEMIES", "dimWait", 500, 0, 10000, 1000, "s", 2000, GiantDetect()))   ; 22.11: ENEMIES LEFT + this, like Extreme
             rows.Push(CStep("NO RETRY RESTART", "dimNoRetry", 1, 0, 30, 1, "min", 2))     ; 22.11: 0 = off
             rows.Push({k: "chips", items: [["SLOT 1", !InStr("2345", cfg["dimMethod"]), PickDimMethod.Bind("1"), false, "dm_1"], ["SLOT 2", cfg["dimMethod"] = "2", PickDimMethod.Bind("2"), false, "dm_2"]]})
             rows.Push({k: "chips", items: [["SLOT 3", cfg["dimMethod"] = "3", PickDimMethod.Bind("3"), false, "dm_3"], ["SLOT 4", cfg["dimMethod"] = "4", PickDimMethod.Bind("4"), false, "dm_4"], ["SLOT 5", cfg["dimMethod"] = "5", PickDimMethod.Bind("5"), false, "dm_5"]]})
