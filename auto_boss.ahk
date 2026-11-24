@@ -173,6 +173,11 @@ RunButtonSeen() {
         colSince := 0, distrust := false
         return lastRes := false
     }
+    ; 24.11 (user's screenshot): bot started in the lobby, a character with glowing white-yellow wings stood over the AUTO spot on the
+    ; lilac floor - the colours read "on", the bot took the lobby for a running raid and waited for ever. The colours alone count only
+    ; while a real fight (the ENEMIES LEFT picture) was seen in the last 3 min: a running raid always shows it.
+    if A_TickCount - realFightAt > 180000
+        return lastRes := false
     if A_TickCount - realFightAt < 60000 || !colSince || gap > 5000
         colSince := A_TickCount                           ; a fight is seen (or the first sighting / after a long pause): the colours are a real run
     if !distrust && A_TickCount - colSince > 600000 {

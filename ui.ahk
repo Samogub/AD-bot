@@ -5,7 +5,7 @@
 ; If a font is not installed, put its .ttf files into the fonts\ folder next to the script, else Segoe UI / Consolas is used.
 
 LOGO_T := 52, LOGO_S := LOGO_T / 100          ; logo tile size in px and its scale
-APP_VERSION := "0.4.1"                  ; shown under the title
+APP_VERSION := "0.4.2"                  ; shown under the title
 APP_AUTHOR  := "Samogub"                 ; shown next to the version
 
 ; ------------------------------ themes ------------------------------
@@ -21,7 +21,7 @@ THEMES := Map(
     "ember",    {lite: 0, ov: "FFFFFF", bg: "0D0806", card: "1A1210", field: "2B1D18", text: "F7ECE3", dim: "A58B7C", on: "FFB86B", off: "3D2A23", idle: "6E5347", acc: "EE7A3C", acc2: "B8365A", hi: "FFC48A", sb: "0D0806", g1: "4A1F0C", lin: "EE7A3C"},
     "ironrose", {lite: 0, ov: "FFFFFF", bg: "060A11", card: "0F171F", field: "19262F", text: "E3EEF0", dim: "7E9BA2", on: "A6D8D8", off: "21313A", idle: "4B6670", acc: "5E8F9B", acc2: "24445A", hi: "AFD8DD", sb: "060A11", g1: "24445A", lin: "5E8F9B"},
     "author",   {lite: 0, ov: "FFFFFF", bg: "08080A", card: "131316", field: "202024", text: "ECECEF", dim: "9A9AA2", on: "CFCFD8", off: "2E2E34", idle: "5E5E66", acc: "7B7D8A", acc2: "3E3F4A", hi: "E4E2EC", sb: "08080A", g1: "2E2E34", lin: "7B7D8A"})
-RAIDS_READY := " divine halloween shiro saiya sungomi tiger dual monke cursed tengu "   ; raids that can be picked (Group Finder finds them by name)
+RAIDS_READY := " divine halloween shiro saiya sungomi tiger dual monke cursed tengu esper "   ; raids that can be picked (Group Finder finds them by name)
 THEME_ORDER := ["nocturne", "cosmos", "sakura", "midnight", "aurora", "metallic", "ironrose", "ember", "author"]
 THEME_TITLES := Map("nocturne", "Nocturne", "cosmos", "Cosmos", "author", "Graphite", "midnight", "Midnight Sakura", "metallic", "Metallic", "ironrose", "Iron Rose")          ; shown instead of the capitalised key
 
@@ -143,6 +143,7 @@ if UI_SHOTS {                                            ; HUD test: "RaidBot.ah
 }
 if skin = "compact"
     SkinSize()
+WhatsNewCheck()                                          ; 24.11: a new build not seen yet -> the "What's new" card (whatsnew.ahk)
 UiCompute()
 UiRender(true)
 Layout()
@@ -731,6 +732,23 @@ PickDimName(k) {
     Log("setting dimName = " k " (applies at once)")
 }
 
+PickDimGF(i, *) {                                        ; 24.11: Dimension entry - 1 Create (own room), 2 Group Finder
+    v := i = 2 ? "1" : "0"
+    if cfg["dimGF"] = v
+        return
+    cfg["dimGF"] := v
+    IniWrite v, INI, "raid", "dimGF"
+    Log("setting dimGF = " v " (applies at once)")
+}
+
+PickDimDiff(i, *) {                                      ; 24.11: Group Finder difficulty 1 Easy, 2 Hard, 3 Nightmare
+    if cfg["dimDiff"] = String(i)
+        return
+    cfg["dimDiff"] := String(i)
+    IniWrite i, INI, "raid", "dimDiff"
+    Log("setting dimDiff = " i " (applies at once)")
+}
+
 PickXdim(n) {
     if cfg["xdimPick"] = n
         return
@@ -1234,6 +1252,7 @@ UiRender(force := false) {
     if IsObject(shotExtra)
         shotExtra.Call()
     DrawPop()                                            ; the pop-up is the last thing in the frame (over the log too)
+    DrawWhatsNew()                                       ; 24.11: over everything, closes only with its X
     if !setupDone                                        ; the overlay card is only for the first run; later Setup is a page
         DrawSetup()
     if uiShotFile != ""
@@ -1345,6 +1364,18 @@ UiShots() {
     uiShotFile := dir "modes_pop.png"
     UiRender(true)
     shotExtra := "", popOpen := ""
+    global wnShow, wnItems, wnVer
+    wnShow := true, wnVer := "0.4.2", curPage := "home", curTab := ""
+    wnItems := [{kind: "+", title: "Esper Raid", why: "New limited raid - pick Esper in the raid list"},
+                {kind: "+", title: "Dimension through Group Finder", why: "Pick map, difficulty and Hardcore - the bot joins a group"},
+                {kind: "~", title: "Raid and Speed Raid with Auto", why: "2 s after Auto: 5, then E R X Z - a stronger start"},
+                {kind: "-", title: "Cursed Sage Raid", why: "It left the game"}]
+    for kf in [0.25, 0.6, 1] {
+        shotExtra := DrawWhatsNew.Bind(kf), wnShow := false, uiShotFile := dir "whatsnew_" Round(kf * 100) ".png"
+        UiRender(true)                                   ; wnShow off: the live call draws nothing, the fixed point is drawn by shotExtra
+        wnShow := true
+    }
+    shotExtra := "", wnShow := false
     global setupBanner, setupBackSkin
     curPage := "home", curTab := "", setupDone := false, uiShotFile := dir "setup_overlay.png"      ; first-run card
     UiRender(true)
@@ -1885,16 +1916,13 @@ PageDimension2() {
     ; 21.11 (user): "Start delay" (dimShift) removed - it did the same as the wait rows below
     SRow(lx, y0 + RH2 * 3, cw, "Keep fighting", "Finishes the enemies that are left after the run", 46, lk ? why : "")
     Sw2(lx, y0 + RH2 * 3, cw, cfg["dimFight"] = "1", "sw_dimFight", FlipKey.Bind("dimFight"), lk)
-    gk := dk != "giant"
-    SRow(lx, y0 + RH2 * 4, cw, "Giant detection", "On: waits for the giants. Off: ENEMIES LEFT + time below", 46, lk ? why : gk ? "Giant only" : "")
-    Sw2(lx, y0 + RH2 * 4, cw, cfg["giantDetect"] = "1", "sw_giantDetect", FlipKey.Bind("giantDetect"), lk || gk)
     ; 17.11: Halloween / Death / ... start by ENEMIES LEFT + this (also after REPLAY); 22.11 (user): Giant with detection off too ("Wait after REPLAY" removed)
-    dw := Num("dimWait", 3000), rk := lk || GiantDetect()     ; Giant with detection on: it waits for the giants, not for this
-    SRow(lx, y0 + RH2 * 5, cw, "Start after ENEMIES LEFT", "Seconds after it shows before the run starts", 150, lk ? why : GiantDetect() ? "Off while detection is on" : "")
-    Stp2(lx, y0 + RH2 * 5, cw, Round(dw / 1000, 1) " s", StepCfg.Bind("dimWait", -500, 0, 10000, 3000), StepCfg.Bind("dimWait", 500, 0, 10000, 3000), "dimWait", rk)
+    dw := Num("dimWait", 3000), rk := lk                        ; 24.11: the Giant detection row is gone - this row moved up
+    SRow(lx, y0 + RH2 * 4, cw, "Start after ENEMIES LEFT", "Seconds after it shows before the run starts", 150, lk ? why : "")
+    Stp2(lx, y0 + RH2 * 4, cw, Round(dw / 1000, 1) " s", StepCfg.Bind("dimWait", -500, 0, 10000, 3000), StepCfg.Bind("dimWait", 500, 0, 10000, 3000), "dimWait", rk)
     ; 22.11 (player: a Death run is longer than 2 min and Roblox was restarted at its end)
-    SRow(lx, y0 + RH2 * 6, cw, "Restart if no RETRY", "Roblox restarts when the run has no results by then; off = never", 150, lk ? why : "")
-    Stp2(lx, y0 + RH2 * 6, cw, StpFmt(Num("dimNoRetry", 2), "min"), StepCfg.Bind("dimNoRetry", -1, 0, 30, 2), StepCfg.Bind("dimNoRetry", 1, 0, 30, 2), "dimNoRetry", lk)
+    SRow(lx, y0 + RH2 * 5, cw, "Restart if no RETRY", "Roblox restarts when the run has no results by then; off = never", 150, lk ? why : "")
+    Stp2(lx, y0 + RH2 * 5, cw, StpFmt(Num("dimNoRetry", 2), "min"), StepCfg.Bind("dimNoRetry", -1, 0, 30, 2), StepCfg.Bind("dimNoRetry", 1, 0, 30, 2), "dimNoRetry", lk)
     rt := FrzGet("route" dk cfg["dimMethod"], DimRoute.Bind(dk))
     rec := rt == DUNGEON_ROUTE ? "Empty slot - the built-in run is played"   ; 14.11: every slot is the player's; only an empty Giant slot falls back
         : rt.Length ? rt.Length " steps · " Round(rt[rt.Length][1] / 1000, 1) " s" : "No recording"
@@ -1904,7 +1932,7 @@ PageDimension2() {
     Btn(rx + cw - 94, by, 94, 34, "Folder", "dim_dir", (*) => OpenPath(DimDir(DimKindUi())), false, "", lk)
     ; the character of the run (compact): picture, name, fruit
     cy2 := y0 + RH2 + 8, ix := rx + 14
-    Glass(rx, cy2, cw, 228)
+    Glass(rx, cy2, cw, 160)
     Tx("CHARACTER", "ui", 11, 1, C.dim, ix, cy2 + 10, 200, 16)
     iy := cy2 + 32
     ic := IMGDIR DIM_CHAR.icon
@@ -1915,14 +1943,23 @@ PageDimension2() {
         Tx("?", "head", 24, 1, C.dim, ix, iy, 64, 64, 1)
     }
     Tx(DIM_CHAR.name != "" ? DIM_CHAR.name : "Not filled in yet", "head", 15, 1, C.text, ix + 78, iy, cw - 106, 24)
-    TxP(DIM_CHAR.text != "" ? DIM_CHAR.text : "Which character, skills and loadout the run was recorded with.", "ui", 11, C.dim, ix + 78, iy + 28, cw - 106, 36)
-    TxP(DIM_CHAR.more, "ui", 11, C.text, ix, iy + 74, cw - 28, 52)
-    fy := iy + 132
+    ; 24.11: the card is shorter (Group Finder rows below it): the extra note goes under the text
+    TxP((DIM_CHAR.text != "" ? DIM_CHAR.text : "Which character, skills and loadout the run was recorded with.") (DIM_CHAR.more != "" ? " " DIM_CHAR.more : ""), "ui", 11, C.dim, ix + 78, iy + 24, cw - 106, 44)
+    fy := iy + 72
     fi := IMGDIR DIM_CHAR.fruitIcon
     if FileExist(fi)
         DrawPng(fi, ix, fy, 48, 48)
     Tx(DIM_CHAR.fruitName, "head", 13, 1, C.text, ix + 62, fy, cw - 90, 20)
-    TxP(DIM_CHAR.fruitText, "ui", 11, C.dim, ix + 62, fy + 22, cw - 90, 44)
+    TxP(DIM_CHAR.fruitText, "ui", 11, C.dim, ix + 62, fy + 22, cw - 90, 28)
+    ; 24.11 (user): enter through Group Finder - pick the map above, the difficulty and Hardcore here
+    gf := cfg["dimGF"] = "1", hal := dk = "halloween"
+    ei := ["Create", "Group Finder"], hcOff := lk || !gf || hal
+    SRow(rx, y0 + RH2 * 4, cw, "Entry", gf ? "Joins a group (HC = Hardcore)" : "Own room (Create)", SegW(ei) + 70, lk ? why : "")
+    Seg(rx, y0 + RH2 * 4, cw, ei, gf ? 2 : 1, "seg_dimGF", PickDimGF, lk)
+    Chip(rx + cw - SegW(ei) - 62, y0 + RH2 * 4 + (RH2 - 32) // 2, 54, 32, "HC", cfg["dimHC"] = "1" && !hal, "chip_dimHC", (*) => FlipKey("dimHC"), hcOff)
+    di := ["Easy", "Hard", "Nightmare"], dsel := hal ? 3 : IsInteger(cfg["dimDiff"]) ? Min(3, Max(1, Integer(cfg["dimDiff"]))) : 3
+    SRow(rx, y0 + RH2 * 5, cw, "Difficulty", hal ? "Halloween: Nightmare only" : "In Group Finder", SegW(di), lk ? why : !gf ? "Group Finder only" : "")
+    Seg(rx, y0 + RH2 * 5, cw, di, dsel, "seg_dimDiff", PickDimDiff, lk || !gf || hal)
 }
 
 DimKindUi() => DIMS.Has(cfg["dimName"]) ? cfg["dimName"] : "giant"

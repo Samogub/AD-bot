@@ -4,14 +4,14 @@
 
 **Farming bot for Anime Dimensions Simulator (Roblox) that keeps going when Roblox itself fails.**
 
-![version](https://img.shields.io/badge/version-0.4.1-b0449a?style=for-the-badge)
+![version](https://img.shields.io/badge/version-0.4.2-b0449a?style=for-the-badge)
 ![windows](https://img.shields.io/badge/Windows-10%20%2F%2011-1f1f2e?style=for-the-badge&logo=windows)
 ![autohotkey](https://img.shields.io/badge/AutoHotkey-v2-1f1f2e?style=for-the-badge&logo=autohotkey)
 ![screen](https://img.shields.io/badge/screen-1920x1080-1f1f2e?style=for-the-badge)
 
-<a href="https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.1.zip"><img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD-AD%20Bot%200.4.1-2ea043?style=for-the-badge" height="44" alt="Download AD Bot 0.4.1"></a>
+<a href="https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.2.zip"><img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD-AD%20Bot%200.4.2-2ea043?style=for-the-badge" height="44" alt="Download AD Bot 0.4.2"></a>
 
-<sub>Use this button, not the green <b>Code → Download ZIP</b>: here the folder is named after the version (<code>AD-bot-0.4.1</code>), so you always know which build you have.</sub>
+<sub>Use this button, not the green <b>Code → Download ZIP</b>: here the folder is named after the version (<code>AD-bot-0.4.2</code>), so you always know which build you have.</sub>
 
 <img src="docs/hero.gif" width="640" alt="AD Bot 0.4.0, HUD 2.0">
 
@@ -23,6 +23,15 @@
 > To download anyway: in Chrome open **Downloads** and press **Keep**; in Windows Defender open **Protection history** and press **Allow**.
 
 > Roblox disconnects, freezes on a teleport, loops a retry screen or just closes? AD/BOT was made for players for whom this happens **all the time**. It notices the problem, restarts the game, joins again and carries on, so your night run does not end at the first crash.
+
+## 🆕 New in 0.4.2
+
+| | |
+|---|---|
+| 🔮 **Esper Raid** | The new limited raid: pick **Esper** in the raid list. |
+| 🧭 **Dimension through Group Finder** | Dimension page, **Entry: Group Finder** - pick the map, the difficulty (Easy / Hard / Nightmare) and **HC** (Hardcore); the bot joins a group and waits on the queue banner. Halloween is always Nightmare without Hardcore. |
+| ⚡ **Stronger raid start with Auto** | Raid and Speed Raid: 2 s after Auto turns on, the bot presses **5** (if your character has it), then **E R X Z** - once per run, nothing else. |
+| 📰 **What's new card** | After an update the bot shows what was added, changed, removed or fixed. Close it with the X. |
 
 ## 🆕 New in 0.4.1
 
@@ -91,6 +100,9 @@
 
 ## 🩹 Recent fixes
 
+- **Quest rewards no longer stuck (24.11, players)** - the last Complete button was cut off by the bottom of the quest list and the click missed it; the bot now scrolls it up first.
+- **No more "raid" in the lobby (24.11)** - a bright skin standing over the AUTO button spot was taken for a running raid and the bot waited for ever. The AUTO colours now count only during a real fight.
+- **Giant detection switch removed (24.11)** - Giant starts like the other maps: ENEMIES LEFT, then **Start after ENEMIES LEFT**.
 - **Giant starts like Extreme (22.11)** - with Giant detection off the bot no longer waits a fixed time after REPLAY: it waits for ENEMIES LEFT, then **Start after ENEMIES LEFT** seconds (Dimension page, default 3 s). "Wait after REPLAY" is gone.
 - **Extreme Dimension card found on more screens (22.11, players)** - on some PCs the game text EXTREME was read as "EXTQEME", so the bot never opened the card and restarted Roblox again and again. Small misreads like that are accepted now.
 - **Restart if no RETRY setting (22.11, players)** - long Dimension runs (Death) were cut by a Roblox restart 2 min after the start. Dimension page: set how many minutes the bot waits for the results before it restarts Roblox (default 2, 0 = off).
@@ -191,7 +203,7 @@
 
 ## 🚀 How to start
 
-1. **[Download AD Bot 0.4.1](https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.1.zip)** and unpack it (folder `AD-bot-0.4.1`). Later versions come with the **UPDATE** button.
+1. **[Download AD Bot 0.4.2](https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.2.zip)** and unpack it (folder `AD-bot-0.4.1`). Later versions come with the **UPDATE** button.
 2. Open Roblox, join the game and wait in the lobby.
 3. Run `RaidBot.ahk`. Press **Check now**, fix what it shows, then **Continue** - the main window opens (the small compact window is in **Settings**).
 4. Pick the raid and modes.

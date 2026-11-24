@@ -1,0 +1,8 @@
+version 0.4.2
++ Esper Raid | New limited raid - pick Esper in the raid list
++ Dimension through Group Finder | Pick map, difficulty and Hardcore - the bot joins a group
++ What's new card | Shows what changed after each update
+~ Raid and Speed Raid with Auto | 2 s after Auto: 5, then E R X Z - a stronger start
+- Giant detection switch | Giant now starts like the other maps
+! Quest rewards | A Complete cut off at the list bottom is scrolled up first
+! Stuck in the lobby | A bright skin over AUTO was taken for a raid

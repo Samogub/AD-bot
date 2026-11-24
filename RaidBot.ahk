@@ -54,7 +54,8 @@ RAIDS := Map(
     "dual",      ["", 0, "Dual Wielder Raid", "i)Wielder"],
     "monke",     ["", 0, "Monke Raid", "i)Monke"],
     "cursed",    ["", 0, "Cursed Sage Raid", "i)Cursed|Sage"],
-    "tengu",     ["", 0, "Tengu Raid", "i)Tengu"])
+    "tengu",     ["", 0, "Tengu Raid", "i)Tengu"],
+    "esper",     ["", 0, "Esper Raid", "i)Esper"])          ; 24.11 new LIMITED raid, LVL 15+
 ; dungeon (experimental): found in the Create list by name, like a raid without a picture
 DUNGEON := ["", 0, "Giant Dimension", "i)Giant"]
 ; the plain Dimensions to pick (11.11, cards read from the Create list): title, OCR pattern. Only Giant has a built-in run; every other one
@@ -335,6 +336,9 @@ cfg := Map(
     "dimMethod",  IniRead(INI, "raid", "dimMethod", "1"),        ; Dimension route: 1 = dimension\giant\log.txt, 2 = built-in route
     "xdim",       IniRead(INI, "raid", "xdim", "0"),             ; Extreme Dimension on/off (0.3.5: only the switch and the 1-4 picker, no run yet)
     "dimName",    IniRead(INI, "raid", "dimName", "giant"),      ; Dimension: giant / halloween / death / demon / ... (DIMS; each keeps its own recordings)
+    "dimGF",      IniRead(INI, "raid", "dimGF", "0"),            ; 24.11 (user): Dimension through Group Finder (map + difficulty) instead of an own room through Create
+    "dimDiff",    IniRead(INI, "raid", "dimDiff", "3"),          ; 24.11: Group Finder difficulty: 1 Easy, 2 Hard, 3 Nightmare (Halloween has only Nightmare)
+    "dimHC",      IniRead(INI, "raid", "dimHC", "1"),            ; 24.11: Group Finder Hardcore toggle (never for Halloween: "This mode does not have Hardcore mode")
     "xdimWait",   IniRead(INI, "raid", "xdimWait", "15"),        ; Extreme Dimension: seconds to wait after Start before the run (the game loads the map)
     "xdimHudWait", IniRead(INI, "raid", "xdimHudWait", "2000"),  ; 17.11: Extreme - ms after ENEMIES LEFT shows before the run starts
     "xdimL3",     IniRead(INI, "raid", "xdimL3", "0"),           ; 17.11: Extreme with Loadout 3 (only while Speed Raid is off - Speed Raid uses it)
@@ -376,6 +380,7 @@ if A_Args.Length && A_Args[1] = "fight"                 ; тест бою: ли�
 
 ; ------------------------- Interface (see ui.ahk) -------------------------
 #Include update.ahk                 ; 14.11: UPDATE button (new build on GitHub) - before ui.ahk: the HUD reads its variables at once
+#Include whatsnew.ahk               ; 24.11: "What's new" card after an update - before ui.ahk (its variables are read at start)
 #Include ui.ahk
 #Include auto_boss.ahk
 #Include rewards.ahk
@@ -1670,6 +1675,16 @@ Step() {
             else {
                 if A_TickCount - fightSince > 500                 ; 14.11 (player: "~15 s until Auto is pressed"): was 2 s
                     AutoEnsure()
+                ; 24.11 (user): Raid and Speed Raid - 2 s after Auto is on: 5 (when the slot has it), then E R X Z almost together. Once per run, nothing else.
+                static openFight := -1, autoOnAt := 0, openDone := false
+                if openFight != fightSince
+                    openFight := fightSince, autoOnAt := 0, openDone := false
+                if autoOnLogged && !autoOnAt
+                    autoOnAt := A_TickCount
+                if inFight && autoOnAt && !openDone && A_TickCount - autoOnAt >= 2000 {   ; only in a real fight (24.11: it fired in the lobby)
+                    openDone := true
+                    AutoOpener()
+                }
                 SetStatus((lastEntered = "speed" ? "Speed Raid" : "raid") ": Auto, waiting for the end")
             }
             return
@@ -2023,6 +2038,13 @@ Step() {
         if EnterRaidGF(rd, gx, gy) {
             SetEntered("raid")
             friendsDone := false
+        }
+        return
+    }
+    if goal = "dungeon" && DimKind() != "xdim" && cfg["dimGF"] = "1" && FindImg("create_tab.png", &gx, &gy) {
+        if EnterDimGF(gx, gy) {
+            SetEntered("dungeon")
+            friendsDone := true                               ; no Create window on this path
         }
         return
     }
@@ -2570,8 +2592,16 @@ ClaimQuests() {
                 same := bx = lx && by = ly ? same + 1 : 0
                 if same >= 2                              ; the same spot 3 times: that button does not take it (a new quest may slide in once)
                     break
+                ; 24.11 (user's screenshot): the last quest's Complete is cut off by the bottom of the list - its centre is under the window
+                ; frame and the click did nothing. A button that low: scroll it up first; when the list cannot move, press its visible top part.
+                if by + 40 > QUEST_LIST[4] - 20 && same = 0 {
+                    MouseMove 1000, 620, 0
+                    Send "{WheelDown 2}"
+                    Sleep 600
+                    QuestBadge(QUEST_LIST[1], QUEST_LIST[2], QUEST_LIST[3], QUEST_LIST[4], &bx, &by)   ; where it is now (moved up, or not if the list is at its end)
+                }
                 lx := bx, ly := by
-                ClickXY(bx - 55, by + 40)                 ; the Complete button: the "!" circle (its top edge found) sits on its top-right corner
+                ClickXY(bx - 55, by + 40 > QUEST_LIST[4] - 20 ? by + 14 : by + 40)   ; the Complete button: the "!" circle (its top edge found) sits on its top-right corner
                 got++
                 Sleep 1000
             }
@@ -2763,7 +2793,7 @@ PartyBonus() {
 
 ; Рейд без еталона: шукаємо його назву в списку рейдів (OCR), гортаючи колесом від початку,
 ; і тиснемо Create під назвою. true - натиснули.
-PickRaidByName(rd, isRaid := true, btn := "i)reate") {
+PickRaidByName(rd, isRaid := true, btn := "i)reate", clickX := RAID_CREATE_X) {
     global raidDoneKey, pickFails, pickFailHour, pickMissAt
     b := RAID_LIST
     SetStatus("looking for " rd[3] " in the list")
@@ -2783,7 +2813,7 @@ PickRaidByName(rd, isRaid := true, btn := "i)reate") {
                 titleY := ln[1]
             else if titleY && RegExMatch(ln[2], btn) && ln[1] > titleY && ln[1] - titleY < 130 {
                 SetStatus("selecting " rd[3])
-                ClickXY(RAID_CREATE_X, b[2] + ln[1])
+                ClickXY(clickX, b[2] + ln[1])
                 ParkMouse()
                 if isRaid
                     pickFails := 0
@@ -2863,6 +2893,58 @@ EnterRaidGF(rd, x, y) {
     }
     return false
 }
+
+;  ---- 24.11 (user): Dimension through Group Finder: open the tab, set Hardcore, find the map card by name, press the chosen difficulty ----
+; The Group Finder card has the buttons side by side (Easy / Hard / Nightmare, x from the 24.11 screenshot); Halloween has only Nightmare (right column).
+; The Hardcore toggle sits right of the window (OFF red, ON green). Halloween with Hardcore on shows "This mode does not have Hardcore mode".
+DIM_GF_X := [956, 1079, 1201]                                ; Easy, Hard, Nightmare button centres in the Group Finder list
+DIM_GF_HC := [1527, 389]                                     ; the Hardcore toggle
+DimGFDiff() => DimKind() = "halloween" ? 3 : IsInteger(cfg["dimDiff"]) ? Min(3, Max(1, Integer(cfg["dimDiff"]))) : 3
+DimGFHC() => cfg["dimHC"] = "1" && DimKind() != "halloween"
+EnterDimGF(x, y) {
+    static clickedAt := 0, chkAt := 0, shown := true, shotDone := false
+    ; 24.11 (user): after the difficulty click the same queue banner as in the raid lobby hangs at the top (EnterRaidGF).
+    ; While it shows, the window is not touched (a second click would leave the queue). The teleport also hides it, so after
+    ; the banner is gone the bot still waits 90 s from the click before queueing again.
+    if clickedAt {
+        if A_TickCount - chkAt > 1500 {
+            chkAt := A_TickCount
+            shown := RegExMatch(OcrRegion([810, 90, 300, 70]), "i)opens|cancel|Time|queue|wait")
+        }
+        if shown || A_TickCount - clickedAt < 90000 {
+            SetStatus("Group Finder: queued for " DimShortName() ", waiting")
+            return false
+        }
+        Log("  Group Finder: the queue banner is gone and still in the Dimension window - queueing again")
+        if !shotDone
+            Screenshot("dim_gf_after"), shotDone := true
+        clickedAt := 0
+    }
+    SetStatus("Group Finder tab (Dimension)")
+    size := PngSize(IMGDIR "create_tab.png")
+    ClickXY(x + size[1] // 2 + GF_TAB_DX, y + size[2] // 2)
+    ParkMouse()
+    Sleep 2000
+    want := DimGFHC()
+    Loop 2 {
+        if ToggleGreen(DIM_GF_HC[1], DIM_GF_HC[2]) = want
+            break
+        ClickXY(DIM_GF_HC[1], DIM_GF_HC[2])
+        ParkMouse()
+        Sleep 600
+    }
+    if ToggleGreen(DIM_GF_HC[1], DIM_GF_HC[2]) != want
+        Log("  Group Finder: Hardcore could not be set " (want ? "on" : "off") " (toggle not found?)")
+    d := DimGFDiff(), names := ["Easy", "Hard", "Nightmare"]
+    ; the button row of a card: any of the difficulty words (OCR sees only part of the row inside RAID_LIST)
+    if PickRaidByName(DungeonRd(), false, "i)ightm|Hard|Eas|Ea.y", DIM_GF_X[d]) {
+        clickedAt := A_TickCount, chkAt := 0, shown := true
+        Log("  Group Finder: " DimShortName() " " names[d] (want ? " + Hardcore" : ""))
+        return true
+    }
+    return false
+}
+DimShortName() => DIMS.Has(DimKind()) ? DIMS[DimKind()][1] : "Giant Dimension"
 
 ; Infinite Mode in the Create list by name; after a miss, waits a minute before searching again
 PickInfinity() {
@@ -3046,7 +3128,7 @@ DimMidCheck() {
     }
 }
 
-GiantDetect() => DimKind() = "giant" && cfg["giantDetect"] = "1"
+GiantDetect() => false                                    ; 24.11 (user): the "Giant detection" switch is removed - Giant starts by ENEMIES LEFT + dimWait like the others
 
 RunRoute(route) {
     global xdimStartAt, dimRetryAt, dimRunAt
@@ -3840,6 +3922,20 @@ SpeedEnter(x, y) {
     while A_TickCount - t0 < 40000 && running && FindImg("play.png", &px, &py, 1500, 800, 1920, 1060)
         Sleep 500
     Sleep 2000
+}
+
+; 24.11 (user): with the game's Auto in Raid / Speed Raid - 5 if the slot has it (an empty slot never shows ready), then E R X Z almost at once.
+AutoOpener() {
+    five := SkillReady("5")
+    if five {
+        Send "{5}"
+        Sleep 80
+    }
+    for k in ["e", "r", "x", "z"] {
+        Send "{" k "}"
+        Sleep 40
+    }
+    Log((lastEntered = "speed" ? "Speed Raid" : "raid") ": 2 s after Auto - " (five ? "5, " : "") "E R X Z")
 }
 
 ; Speed Raid, щойно підійшли до боса: E і R майже разом, X, Z, через 1 с - 5 4 3 2 1 по черзі.
