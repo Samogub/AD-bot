@@ -2995,9 +2995,13 @@ DungeonSetup(x, y) {
                 Sleep 25
             }
             Sleep 300
-            ClickXY(x - 299, y - 136)
-            ParkMouse()
-            Sleep 600
+            for dy in [136, 187, 238] {                      ; 25.11: Nightmare is row 3 (Easy/Hard/Nightmare), row 2 (Easy/Nightmare: Sword, Fate...) or row 1
+                ClickXY(x - 299, y - dy)
+                ParkMouse()
+                Sleep 600
+                if InStr(OcrRegion(box), "ightmare")
+                    break
+            }
         }
         if hcNeed && !ToggleGreen(x - 122, y - 58) {         ; Hardcore
             ClickXY(x - 92, y - 58)

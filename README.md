@@ -100,6 +100,7 @@
 
 ## 🩹 Recent fixes
 
+- **Dimension Nightmare on Sword, Fate and other maps (25.11, players)** - on maps with only Easy and Nightmare the bot clicked the empty 3rd row of the difficulty list, so Nightmare was never set and the run did not start. It now tries row 3, 2 and 1 and checks that Nightmare is picked.
 - **Quest rewards no longer stuck (24.11, players)** - the last Complete button was cut off by the bottom of the quest list and the click missed it; the bot now scrolls it up first.
 - **No more "raid" in the lobby (24.11)** - a bright skin standing over the AUTO button spot was taken for a running raid and the bot waited for ever. The AUTO colours now count only during a real fight.
 - **Giant detection switch removed (24.11)** - Giant starts like the other maps: ENEMIES LEFT, then **Start after ENEMIES LEFT**.
@@ -203,7 +204,7 @@
 
 ## 🚀 How to start
 
-1. **[Download AD Bot 0.4.2](https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.2.zip)** and unpack it (folder `AD-bot-0.4.1`). Later versions come with the **UPDATE** button.
+1. **[Download AD Bot 0.4.2](https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.2.zip)** and unpack it (folder `AD-bot-0.4.2`). Later versions come with the **UPDATE** button.
 2. Open Roblox, join the game and wait in the lobby.
 3. Run `RaidBot.ahk`. Press **Check now**, fix what it shows, then **Continue** - the main window opens (the small compact window is in **Settings**).
 4. Pick the raid and modes.
