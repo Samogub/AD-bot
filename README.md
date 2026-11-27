@@ -4,14 +4,14 @@
 
 **Farming bot for Anime Dimensions Simulator (Roblox) that keeps going when Roblox itself fails.**
 
-![version](https://img.shields.io/badge/version-0.4.3-b0449a?style=for-the-badge)
+![version](https://img.shields.io/badge/version-0.4.2-b0449a?style=for-the-badge)
 ![windows](https://img.shields.io/badge/Windows-10%20%2F%2011-1f1f2e?style=for-the-badge&logo=windows)
 ![autohotkey](https://img.shields.io/badge/AutoHotkey-v2-1f1f2e?style=for-the-badge&logo=autohotkey)
 ![screen](https://img.shields.io/badge/screen-1920x1080-1f1f2e?style=for-the-badge)
 
-<a href="https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.3.zip"><img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD-AD%20Bot%200.4.3-2ea043?style=for-the-badge" height="44" alt="Download AD Bot 0.4.3"></a>
+<a href="https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.2.zip"><img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD-AD%20Bot%200.4.2-2ea043?style=for-the-badge" height="44" alt="Download AD Bot 0.4.2"></a>
 
-<sub>Use this button, not the green <b>Code → Download ZIP</b>: here the folder is named after the version (<code>AD-bot-0.4.3</code>), so you always know which build you have.</sub>
+<sub>Use this button, not the green <b>Code → Download ZIP</b>: here the folder is named after the version (<code>AD-bot-0.4.2</code>), so you always know which build you have.</sub>
 
 <img src="docs/hero.gif" width="640" alt="AD Bot 0.4.0, HUD 2.0">
 
@@ -24,17 +24,12 @@
 
 > Roblox disconnects, freezes on a teleport, loops a retry screen or just closes? AD/BOT was made for players for whom this happens **all the time**. It notices the problem, restarts the game, joins again and carries on, so your night run does not end at the first crash.
 
-## 🆕 New in 0.4.3
+## 🆕 New in 0.4.2
 
 | | |
 |---|---|
 | 🗿 **Combat Giant Raid** | The new limited raid: pick **Combat** in the raid list. |
 | 🧹 **Old raids removed** | Infinity Shiro, Saiya Ultra Instinct and Cursed Sage left the game. If you had one picked, the bot switches to Divine. |
-
-## 🆕 New in 0.4.2
-
-| | |
-|---|---|
 | 🔮 **Esper Raid** | The new limited raid: pick **Esper** in the raid list. |
 | 🧭 **Dimension through Group Finder** | Dimension page, **Entry: Group Finder** - pick the map, the difficulty (Easy / Hard / Nightmare) and **HC** (Hardcore); the bot joins a group and waits on the queue banner. Halloween is always Nightmare without Hardcore. |
 | ⚡ **Stronger raid start with Auto** | Raid and Speed Raid: 2 s after Auto turns on, the bot presses **5** (if your character has it), then **E R X Z** - once per run, nothing else. |
@@ -212,7 +207,7 @@
 
 ## 🚀 How to start
 
-1. **[Download AD Bot 0.4.3](https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.3.zip)** and unpack it (folder `AD-bot-0.4.3`). Later versions come with the **UPDATE** button.
+1. **[Download AD Bot 0.4.2](https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.2.zip)** and unpack it (folder `AD-bot-0.4.2`). Later versions come with the **UPDATE** button.
 2. Open Roblox, join the game and wait in the lobby.
 3. Run `RaidBot.ahk`. Press **Check now**, fix what it shows, then **Continue** - the main window opens (the small compact window is in **Settings**).
 4. Pick the raid and modes.
