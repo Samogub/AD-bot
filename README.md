@@ -4,14 +4,14 @@
 
 **Farming bot for Anime Dimensions Simulator (Roblox) that keeps going when Roblox itself fails.**
 
-![version](https://img.shields.io/badge/version-0.4.2-b0449a?style=for-the-badge)
+![version](https://img.shields.io/badge/version-0.4.3-b0449a?style=for-the-badge)
 ![windows](https://img.shields.io/badge/Windows-10%20%2F%2011-1f1f2e?style=for-the-badge&logo=windows)
 ![autohotkey](https://img.shields.io/badge/AutoHotkey-v2-1f1f2e?style=for-the-badge&logo=autohotkey)
 ![screen](https://img.shields.io/badge/screen-1920x1080-1f1f2e?style=for-the-badge)
 
-<a href="https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.2.zip"><img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD-AD%20Bot%200.4.2-2ea043?style=for-the-badge" height="44" alt="Download AD Bot 0.4.2"></a>
+<a href="https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.3.zip"><img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F%20DOWNLOAD-AD%20Bot%200.4.3-2ea043?style=for-the-badge" height="44" alt="Download AD Bot 0.4.3"></a>
 
-<sub>Use this button, not the green <b>Code → Download ZIP</b>: here the folder is named after the version (<code>AD-bot-0.4.2</code>), so you always know which build you have.</sub>
+<sub>Use this button, not the green <b>Code → Download ZIP</b>: here the folder is named after the version (<code>AD-bot-0.4.3</code>), so you always know which build you have.</sub>
 
 <img src="docs/hero.gif" width="640" alt="AD Bot 0.4.0, HUD 2.0">
 
@@ -23,6 +23,13 @@
 > To download anyway: in Chrome open **Downloads** and press **Keep**; in Windows Defender open **Protection history** and press **Allow**.
 
 > Roblox disconnects, freezes on a teleport, loops a retry screen or just closes? AD/BOT was made for players for whom this happens **all the time**. It notices the problem, restarts the game, joins again and carries on, so your night run does not end at the first crash.
+
+## 🆕 New in 0.4.3
+
+| | |
+|---|---|
+| 🗿 **Combat Giant Raid** | The new limited raid: pick **Combat** in the raid list. |
+| 🧹 **Old raids removed** | Infinity Shiro, Saiya Ultra Instinct and Cursed Sage left the game. If you had one picked, the bot switches to Divine. |
 
 ## 🆕 New in 0.4.2
 
@@ -100,6 +107,7 @@
 
 ## 🩹 Recent fixes
 
+- **Recording step count (26.11, players)** - the Dimension page said 125 steps while the Recorder listed 79 for the same run. It now counts the steps the same way as the Recorder.
 - **Dimension Nightmare on Sword, Fate and other maps (25.11, players)** - on maps with only Easy and Nightmare the bot clicked the empty 3rd row of the difficulty list, so Nightmare was never set and the run did not start. It now tries row 3, 2 and 1 and checks that Nightmare is picked.
 - **Quest rewards no longer stuck (24.11, players)** - the last Complete button was cut off by the bottom of the quest list and the click missed it; the bot now scrolls it up first.
 - **No more "raid" in the lobby (24.11)** - a bright skin standing over the AUTO button spot was taken for a running raid and the bot waited for ever. The AUTO colours now count only during a real fight.
@@ -204,7 +212,7 @@
 
 ## 🚀 How to start
 
-1. **[Download AD Bot 0.4.2](https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.2.zip)** and unpack it (folder `AD-bot-0.4.2`). Later versions come with the **UPDATE** button.
+1. **[Download AD Bot 0.4.3](https://github.com/Samogub/AD-bot/archive/refs/tags/v0.4.3.zip)** and unpack it (folder `AD-bot-0.4.3`). Later versions come with the **UPDATE** button.
 2. Open Roblox, join the game and wait in the lobby.
 3. Run `RaidBot.ahk`. Press **Check now**, fix what it shows, then **Continue** - the main window opens (the small compact window is in **Settings**).
 4. Pick the raid and modes.

@@ -5,7 +5,7 @@
 ; If a font is not installed, put its .ttf files into the fonts\ folder next to the script, else Segoe UI / Consolas is used.
 
 LOGO_T := 52, LOGO_S := LOGO_T / 100          ; logo tile size in px and its scale
-APP_VERSION := "0.4.2"                  ; shown under the title
+APP_VERSION := "0.4.3"                  ; shown under the title
 APP_AUTHOR  := "Samogub"                 ; shown next to the version
 
 ; ------------------------------ themes ------------------------------
@@ -21,7 +21,7 @@ THEMES := Map(
     "ember",    {lite: 0, ov: "FFFFFF", bg: "0D0806", card: "1A1210", field: "2B1D18", text: "F7ECE3", dim: "A58B7C", on: "FFB86B", off: "3D2A23", idle: "6E5347", acc: "EE7A3C", acc2: "B8365A", hi: "FFC48A", sb: "0D0806", g1: "4A1F0C", lin: "EE7A3C"},
     "ironrose", {lite: 0, ov: "FFFFFF", bg: "060A11", card: "0F171F", field: "19262F", text: "E3EEF0", dim: "7E9BA2", on: "A6D8D8", off: "21313A", idle: "4B6670", acc: "5E8F9B", acc2: "24445A", hi: "AFD8DD", sb: "060A11", g1: "24445A", lin: "5E8F9B"},
     "author",   {lite: 0, ov: "FFFFFF", bg: "08080A", card: "131316", field: "202024", text: "ECECEF", dim: "9A9AA2", on: "CFCFD8", off: "2E2E34", idle: "5E5E66", acc: "7B7D8A", acc2: "3E3F4A", hi: "E4E2EC", sb: "08080A", g1: "2E2E34", lin: "7B7D8A"})
-RAIDS_READY := " divine halloween shiro saiya sungomi tiger dual monke cursed tengu esper "   ; raids that can be picked (Group Finder finds them by name)
+RAIDS_READY := " divine halloween sungomi tiger dual monke tengu esper combat "   ; raids that can be picked (Group Finder finds them by name)
 THEME_ORDER := ["nocturne", "cosmos", "sakura", "midnight", "aurora", "metallic", "ironrose", "ember", "author"]
 THEME_TITLES := Map("nocturne", "Nocturne", "cosmos", "Cosmos", "author", "Graphite", "midnight", "Midnight Sakura", "metallic", "Metallic", "ironrose", "Iron Rose")          ; shown instead of the capitalised key
 
@@ -1925,7 +1925,7 @@ PageDimension2() {
     Stp2(lx, y0 + RH2 * 5, cw, StpFmt(Num("dimNoRetry", 2), "min"), StepCfg.Bind("dimNoRetry", -1, 0, 30, 2), StepCfg.Bind("dimNoRetry", 1, 0, 30, 2), "dimNoRetry", lk)
     rt := FrzGet("route" dk cfg["dimMethod"], DimRoute.Bind(dk))
     rec := rt == DUNGEON_ROUTE ? "Empty slot - the built-in run is played"   ; 14.11: every slot is the player's; only an empty Giant slot falls back
-        : rt.Length ? rt.Length " steps · " Round(rt[rt.Length][1] / 1000, 1) " s" : "No recording"
+        : rt.Length ? FrzGet("recrows" dk cfg["dimMethod"], RecRows.Bind(DimDir(dk) "log.txt")) " steps · " Round(rt[rt.Length][1] / 1000, 1) " s" : "No recording"
     SRow(rx, y0, cw, "Recording", rec, 196, , lk)
     by := y0 + (RH2 - 34) // 2
     Btn(rx + cw - 196, by, 96, 34, "Recorder", "dim_edit", DimEdit, true, "", lk)
@@ -2784,4 +2784,24 @@ ConnTest(*) {
         return
     }
     ConnSay("hook", "Test sent - look in your Discord channel.")
+}
+
+; 26.11 (player: the bot said 125 steps, the Recorder 79 for the same run): count rows like the Recorder's list
+; (tools\Recorder2.ahk ParseLog): known kinds only, and a kd followed at once by the ku of the same key (no screenshot) is one row.
+RecRows(file) {
+    try txt := FileRead(file)
+    catch
+        return 0
+    n := 0, pk := "", pa := ""
+    for line in StrSplit(txt, "`n", "`r") {
+        p := StrSplit(line, ",")
+        if p.Length < 3 || SubStr(line, 1, 1) = ";" || !InStr(" kd ku kp mm up dn ld lu rd ru md mu x1d x1u x2d x2u wait ", " " p[2] " ") || !IsNumber(Trim(p[1]))
+            continue
+        if pk = "kd" && p[2] = "ku" && p[3] = pa && (p.Length < 6 || p[6] = "") {
+            pk := ""
+            continue
+        }
+        n += 1, pk := p[2], pa := p[3]
+    }
+    return n
 }

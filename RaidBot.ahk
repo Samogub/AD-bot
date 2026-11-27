@@ -47,15 +47,13 @@ ENEMIES_HOME := [1840, 819]
 RAIDS := Map(
     "halloween", ["halloween.png", [113, 95], "Halloween Raid", "i)Hallow"],
     "divine",    ["divine.png",    [107, 92], "Divine Guardian Raid", "i)Divine"],
-    "shiro",     ["", 0, "Infinity Shiro Raid", "i)Shiro"],
-    "saiya",     ["", 0, "Saiya Ultra Instinct Raid", "i)Saiya|Instinct"],
     "sungomi",   ["", 0, "Sun Gomi Raid", "i)Gomi"],
     "tiger",     ["", 0, "Tiger Raid", "i)Tiger"],
     "dual",      ["", 0, "Dual Wielder Raid", "i)Wielder"],
     "monke",     ["", 0, "Monke Raid", "i)Monke"],
-    "cursed",    ["", 0, "Cursed Sage Raid", "i)Cursed|Sage"],
     "tengu",     ["", 0, "Tengu Raid", "i)Tengu"],
-    "esper",     ["", 0, "Esper Raid", "i)Esper"])          ; 24.11 new LIMITED raid, LVL 15+
+    "esper",     ["", 0, "Esper Raid", "i)Esper"],          ; 24.11 new LIMITED raid, LVL 15+
+    "combat",    ["", 0, "Combat Giant Raid", "i)Combat"])  ; 28.11 new LIMITED raid; Shiro, Saiya UI and Cursed Sage left the game
 ; dungeon (experimental): found in the Create list by name, like a raid without a picture
 DUNGEON := ["", 0, "Giant Dimension", "i)Giant"]
 ; the plain Dimensions to pick (11.11, cards read from the Create list): title, OCR pattern. Only Giant has a built-in run; every other one

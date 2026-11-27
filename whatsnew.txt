@@ -1,9 +1,4 @@
-version 0.4.2
-! Dimension Nightmare | Sword, Fate and other maps with only Easy / Nightmare: the bot now picks Nightmare
-+ Esper Raid | New limited raid - pick Esper in the raid list
-+ Dimension through Group Finder | Pick map, difficulty and Hardcore - the bot joins a group
-+ What's new card | Shows what changed after each update
-~ Raid and Speed Raid with Auto | 2 s after Auto: 5, then E R X Z - a stronger start
-- Giant detection switch | Giant now starts like the other maps
-! Quest rewards | A Complete cut off at the list bottom is scrolled up first
-! Stuck in the lobby | A bright skin over AUTO was taken for a raid
+version 0.4.3
++ Combat Giant Raid | New limited raid - pick Combat in the raid list
+- Shiro, Saiya UI, Cursed Sage | These raids left the game; if one was picked, the bot switches to Divine
+! Recording steps | The step count now matches the Recorder list
