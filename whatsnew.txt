@@ -1,4 +1,5 @@
 version 0.4.2
+! Started from the ZIP | The bot now refuses to run from inside the archive - extract it first
 + Combat Giant Raid | New limited raid - pick Combat in the raid list
 - Old raids removed | Shiro, Saiya UI, Cursed Sage left the game; if one was picked, the bot switches to Divine
 ! Recording steps | The step count now matches the Recorder list

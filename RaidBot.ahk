@@ -830,6 +830,8 @@ FlushRun() {
 SetupChecks(deep := false) {
     r := []
     Add := (name, state, fix := "", link := "") => r.Push({name: name, state: state, fix: fix, link: link})
+    if RunFromArchive()                                   ; 28.11: started from inside the ZIP (Explorer / 7-Zip / WinRAR temp copy): nothing else matters
+        return [{name: "The bot runs from inside the ZIP archive", state: "fail", fix: "Close the bot. Right-click the ZIP > Extract All, open the new folder and start RaidBot.ahk from there. From inside the archive the files are a temporary copy: settings, logs and updates get lost."}]
     if deep && !WinExist(GAME)                            ; 8.11: the full check needs the game open: say it first and stop there
         return [{name: "Roblox is not running", state: "fail", fix: "Start Roblox and the game, wait in the lobby (the big PLAY button must be visible), then press Check again."}]
     if A_ScreenWidth = SCR_W && A_ScreenHeight = SCR_H
@@ -943,6 +945,16 @@ SetupChecks(deep := false) {
     return r
 }
 
+; 28.11: a player started the bot from inside the ZIP. Windows / 7-Zip / WinRAR then run a temp copy:
+; %TEMP%\Temp1_<name>.zip\..., %TEMP%\7zO..., %TEMP%\Rar$EX... The folder vanishes later, settings and updates are lost.
+RunFromArchive() {
+    d := A_ScriptDir "\"
+    if RegExMatch(d, "i)\.zip\\")                      ; Explorer's Temp1_<name>.zip folder (or a zip opened as a folder)
+        return true
+    t := RTrim(A_Temp, "\") "\"
+    return SubStr(d, 1, StrLen(t)) = t                   ; any copy under %TEMP% (7-Zip, WinRAR); case-insensitive compare
+}
+
 ; every start: the same checks go to the log (nothing here stops the bot)
 StartupChecks() {
     for it in SetupChecks()
@@ -955,6 +967,12 @@ Start() {
     global problemNote, problemNoted, safeBan, safeStrikes, safeLast, safePending, safeWarnKind, xdimMapNow, safePauses, safePauseAt
     if IsSet(updBusy) && updBusy                          ; UPDATE is copying the new files: no farming on half-replaced files
         return
+    if RunFromArchive() {                                 ; 28.11: never farm from the temp copy of a ZIP - show the red Setup check instead
+        Log("START BLOCKED: running from inside the ZIP archive (" A_ScriptDir ")")
+        problemNote := "the bot was started from inside the ZIP. Extract the archive first."
+        try ProblemShow()
+        return
+    }
     problemNote := "", problemNoted := Map(), xdimMapNow := ""
     global routePlaying, dimWinAt
     routePlaying := false, dimWinAt := 0                  ; critic 18.11: an error inside RunRoute must not freeze the HUD / webhook for good

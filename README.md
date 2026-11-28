@@ -102,6 +102,7 @@
 
 ## 🩹 Recent fixes
 
+- **Running from inside the ZIP (28.11, players)** - started straight from the archive, the bot ran a temporary copy, so settings, logs and updates got lost. Now the Setup check shows a red line and Start is blocked until the archive is extracted.
 - **Recording step count (26.11, players)** - the Dimension page said 125 steps while the Recorder listed 79 for the same run. It now counts the steps the same way as the Recorder.
 - **Dimension Nightmare on Sword, Fate and other maps (25.11, players)** - on maps with only Easy and Nightmare the bot clicked the empty 3rd row of the difficulty list, so Nightmare was never set and the run did not start. It now tries row 3, 2 and 1 and checks that Nightmare is picked.
 - **Quest rewards no longer stuck (24.11, players)** - the last Complete button was cut off by the bottom of the quest list and the click missed it; the bot now scrolls it up first.
